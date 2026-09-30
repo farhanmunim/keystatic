@@ -1,0 +1,454 @@
+# Sveltia CMS configuration
+# Docs: https://sveltiacms.app/en/docs
+# JSON schema (for editor validation): https://unpkg.com/@sveltia/cms/schema/sveltia-cms.json
+
+backend:
+  name: github
+  # GitHub repository that stores the content (owner/repo)
+  repo: farhanmunim/keystatic
+  # Production branch. Cloudflare Pages builds this branch into the live site.
+  branch: main
+  # OAuth: URL of your deployed Sveltia CMS Authenticator (Cloudflare Worker).
+  # See README.md "Manual setup". Replace with your own worker URL.
+  base_url: https://sveltia-cms-auth.YOUR-SUBDOMAIN.workers.dev
+  # Editorial Workflow: publish drafts with a squash merge to keep history tidy.
+  squash_merges: true
+  # Cloudflare Pages builds automatically on every push to the production branch.
+  # Setting this to false (the default) still lets editors toggle "skip deployment" per save.
+  skip_ci: false
+
+# Drafts: every content collection goes through Draft -> In review -> Ready -> Publish.
+# Unpublished entries live on a separate Git branch / pull request and never reach the live site.
+# Organisation collections (categories, tags, authors) and settings opt out below.
+publish_mode: editorial_workflow
+
+# One shared media library for all uploads (images, PDFs, attachments).
+# Originals are stored untouched; no automatic resizing or re-encoding.
+media_folder: public/uploads
+public_folder: /uploads
+media_libraries:
+  default:
+    config:
+      max_file_size: 26214400 # 25 MB (GitHub's API limit for a single file is 100 MB)
+
+# Slugs are generated from the title/name: lowercase, ASCII, hyphenated.
+slug:
+  encoding: ascii
+  clean_accents: true
+  lowercase: true
+
+app_title: Site CMS
+logo_url: /uploads/logo.svg
+show_preview_links: true
+
+output:
+  omit_empty_optional_fields: true
+
+collections:
+  # ---------------------------------------------------------------- Content
+  - name: pages
+    label: Pages
+    label_singular: Page
+    description: One-off pages like About or Contact.
+    icon: description
+    folder: src/content/pages
+    extension: md
+    format: frontmatter
+    slug:
+      template: '{{title}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+      hint: Generated from the title; edit it to change the page URL.
+    preview_path: '{{slug}}'
+    summary: '{{title}}'
+    sortable_fields: [title, commit_date]
+    fields:
+      - { name: title, label: Title, widget: string }
+      - name: author
+        label: Author
+        widget: relation
+        collection: authors
+        value_field: '{{slug}}'
+        display_fields: ['{{first_name}} {{last_name}}']
+        search_fields: [first_name, last_name]
+        required: false
+        hint: Pick yourself from the Authors list.
+      - { name: cover, label: Cover image, widget: image, required: false }
+      - name: cover_alt
+        label: Cover image alt text
+        widget: string
+        required: false
+        hint: Describe the cover image for screen readers.
+      - name: description
+        label: Description
+        widget: text
+        required: false
+        hint: Used as the page's meta description.
+      - name: body
+        label: Content
+        widget: markdown
+
+  - name: posts
+    label: Posts
+    label_singular: Post
+    description: Blog posts.
+    icon: article
+    folder: src/content/posts
+    extension: md
+    format: frontmatter
+    slug:
+      template: '{{title}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+      hint: Generated from the title; edit it to change the post URL.
+    preview_path: 'blog/{{slug}}'
+    summary: '{{title}}'
+    sortable_fields:
+      fields: [title, date, author, featured]
+      default: { field: date, direction: descending }
+    view_filters:
+      - { label: Featured, field: featured, eq: true }
+    view_groups:
+      - { label: Author, field: author }
+    fields:
+      - { name: title, label: Title, widget: string }
+      - name: author
+        label: Author
+        widget: relation
+        collection: authors
+        value_field: '{{slug}}'
+        display_fields: ['{{first_name}} {{last_name}}']
+        search_fields: [first_name, last_name]
+        required: false
+        hint: Pick yourself from the Authors list.
+      - { name: cover, label: Cover image, widget: image, required: false }
+      - { name: cover_alt, label: Cover image alt text, widget: string, required: false }
+      - name: excerpt
+        label: Excerpt
+        widget: text
+        required: false
+        hint: Short summary shown in listings.
+      - name: date
+        label: Publish date
+        widget: datetime
+        default: '{{now}}'
+        auto_now: [create]
+        hint: Set automatically when the post is created; change it if needed.
+      - name: featured
+        label: Featured
+        widget: boolean
+        default: false
+        hint: Highlight on the homepage and at the top of listings.
+      - name: categories
+        label: Categories
+        widget: relation
+        collection: categories
+        value_field: '{{slug}}'
+        display_fields: [name]
+        search_fields: [name]
+        multiple: true
+        required: false
+      - name: tags
+        label: Tags
+        widget: relation
+        collection: tags
+        value_field: '{{slug}}'
+        display_fields: [name]
+        search_fields: [name]
+        multiple: true
+        required: false
+        hint: Create new tags in the Tags collection first.
+      - { name: body, label: Content, widget: markdown }
+
+  - name: projects
+    label: Projects
+    label_singular: Project
+    description: Portfolio items.
+    icon: work
+    folder: src/content/projects
+    extension: md
+    format: frontmatter
+    slug:
+      template: '{{title}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+    preview_path: 'projects/{{slug}}'
+    summary: '{{title}}'
+    view_filters:
+      - { label: Featured, field: featured, eq: true }
+    fields:
+      - { name: title, label: Title, widget: string }
+      - name: author
+        label: Author
+        widget: relation
+        collection: authors
+        value_field: '{{slug}}'
+        display_fields: ['{{first_name}} {{last_name}}']
+        search_fields: [first_name, last_name]
+        required: false
+      - { name: featured, label: Featured, widget: boolean, default: false }
+      - name: tags
+        label: Tags
+        widget: relation
+        collection: tags
+        value_field: '{{slug}}'
+        display_fields: [name]
+        search_fields: [name]
+        multiple: true
+        required: false
+      - { name: cover, label: Cover image, widget: image, required: false }
+      - { name: cover_alt, label: Cover image alt text, widget: string, required: false }
+      - { name: summary, label: Summary, widget: text, required: false }
+      - name: url
+        label: URL
+        widget: string
+        type: url
+        required: false
+        hint: Link to the live project.
+      - name: attachment
+        label: Attachment
+        widget: file
+        required: false
+        hint: Optional downloadable file, e.g. a case study PDF.
+      - { name: body, label: Content, widget: markdown }
+
+  - name: services
+    label: Services
+    label_singular: Service
+    description: Service offerings.
+    icon: handshake
+    folder: src/content/services
+    extension: md
+    format: frontmatter
+    slug:
+      template: '{{title}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+    preview_path: 'services/{{slug}}'
+    summary: '{{title}}'
+    view_filters:
+      - { label: Featured, field: featured, eq: true }
+    fields:
+      - { name: title, label: Title, widget: string }
+      - name: author
+        label: Author
+        widget: relation
+        collection: authors
+        value_field: '{{slug}}'
+        display_fields: ['{{first_name}} {{last_name}}']
+        search_fields: [first_name, last_name]
+        required: false
+      - { name: featured, label: Featured, widget: boolean, default: false }
+      - name: tags
+        label: Tags
+        widget: relation
+        collection: tags
+        value_field: '{{slug}}'
+        display_fields: [name]
+        search_fields: [name]
+        multiple: true
+        required: false
+      - { name: cover, label: Cover image, widget: image, required: false }
+      - { name: cover_alt, label: Cover image alt text, widget: string, required: false }
+      - { name: summary, label: Summary, widget: text, required: false }
+      - { name: body, label: Content, widget: markdown }
+
+  - name: resources
+    label: Resources
+    label_singular: Resource
+    description: Links and downloads. A resource can be an external link, a file, or both.
+    icon: link
+    folder: src/content/resources
+    extension: md
+    format: frontmatter
+    slug:
+      template: '{{title}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+    preview_path: 'resources/{{slug}}'
+    summary: '{{title}}'
+    view_filters:
+      - { label: Featured, field: featured, eq: true }
+    fields:
+      - { name: title, label: Title, widget: string }
+      - name: author
+        label: Author
+        widget: relation
+        collection: authors
+        value_field: '{{slug}}'
+        display_fields: ['{{first_name}} {{last_name}}']
+        search_fields: [first_name, last_name]
+        required: false
+      - { name: featured, label: Featured, widget: boolean, default: false }
+      - name: tags
+        label: Tags
+        widget: relation
+        collection: tags
+        value_field: '{{slug}}'
+        display_fields: [name]
+        search_fields: [name]
+        multiple: true
+        required: false
+      - { name: cover, label: Cover image, widget: image, required: false }
+      - { name: cover_alt, label: Cover image alt text, widget: string, required: false }
+      - { name: description, label: Description, widget: text, required: false }
+      - name: url
+        label: External URL
+        widget: string
+        type: url
+        required: false
+      - name: attachment
+        label: Attachment
+        widget: file
+        required: false
+        hint: Optional downloadable file.
+      - { name: body, label: Content, widget: markdown }
+
+  # ----------------------------------------------------------- Organisation
+  - divider: true
+
+  - name: categories
+    label: Categories
+    label_singular: Category
+    description: Hierarchical post sections. Set a parent to nest categories.
+    icon: folder
+    folder: src/content/categories
+    extension: yml
+    format: yaml
+    identifier_field: name
+    publish_mode: simple
+    slug:
+      template: '{{name}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+    preview_path: 'category/{{slug}}'
+    summary: '{{name}}'
+    fields:
+      - { name: name, label: Name, widget: string }
+      - name: parent
+        label: Parent category
+        widget: relation
+        collection: categories
+        value_field: '{{slug}}'
+        display_fields: [name]
+        search_fields: [name]
+        required: false
+        hint: Optional. Enables nesting, e.g. Guides → Tutorials.
+
+  - name: tags
+    label: Tags
+    label_singular: Tag
+    description: Flat labels shared by posts, projects, services and resources.
+    icon: sell
+    folder: src/content/tags
+    extension: yml
+    format: yaml
+    identifier_field: name
+    publish_mode: simple
+    slug:
+      template: '{{name}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+    preview_path: 'tags/{{slug}}'
+    summary: '{{name}}'
+    fields:
+      - { name: name, label: Name, widget: string }
+
+  # ---------------------------------------------------------------- Settings
+  - divider: true
+
+  - name: authors
+    label: Authors
+    label_singular: Author
+    description: Public author profiles shown on the site. Sign-in accounts are GitHub accounts.
+    icon: person
+    folder: src/content/authors
+    extension: md
+    format: frontmatter
+    identifier_field: first_name
+    publish_mode: simple
+    slug:
+      template: '{{first_name}}-{{last_name}}'
+      editable: true
+      pattern: ['^[a-z0-9]+(?:-[a-z0-9]+)*$', 'Use lowercase letters, numbers and hyphens only']
+    preview_path: 'authors/{{slug}}'
+    summary: '{{first_name}} {{last_name}}'
+    fields:
+      - { name: first_name, label: First name, widget: string }
+      - { name: last_name, label: Last name, widget: string }
+      - { name: avatar, label: Avatar, widget: image, required: false }
+      - name: social
+        label: Social links
+        label_singular: Social link
+        widget: list
+        required: false
+        summary: '{{fields.platform}}: {{fields.url}}'
+        fields:
+          - name: platform
+            label: Platform
+            widget: select
+            options: [Website, GitHub, LinkedIn, X, Bluesky, Mastodon, Instagram, YouTube, Other]
+          - { name: url, label: URL, widget: string, type: url }
+          - { name: handle, label: Handle, widget: string, required: false }
+      - { name: body, label: About the author, widget: markdown, required: false }
+
+singletons:
+  - name: site
+    label: Site Settings
+    icon: settings
+    file: src/content/settings/site.yml
+    format: yaml
+    fields:
+      - { name: name, label: Site name, widget: string }
+      - { name: tagline, label: Tagline, widget: string, required: false }
+      - name: description
+        label: Default meta description
+        widget: text
+        required: false
+      - { name: logo, label: Logo, widget: image, required: false }
+      - name: favicon
+        label: Favicon
+        widget: image
+        required: false
+        hint: A square SVG, PNG or ICO file.
+      - name: share_image
+        label: Default social-share image
+        widget: image
+        required: false
+        hint: Used for Open Graph / Twitter cards when a page has no cover image.
+      - { name: footer_text, label: Footer copyright text, widget: string, required: false }
+      - name: social
+        label: Social links
+        label_singular: Social link
+        widget: list
+        required: false
+        summary: '{{fields.platform}}: {{fields.url}}'
+        fields:
+          - name: platform
+            label: Platform
+            widget: select
+            options: [Website, GitHub, LinkedIn, X, Bluesky, Mastodon, Instagram, YouTube, Other]
+          - { name: url, label: URL, widget: string, type: url }
+          - { name: handle, label: Handle, widget: string, required: false }
+      - name: analytics_url
+        label: Analytics dashboard link
+        widget: string
+        type: url
+        required: false
+        hint: A read-only Umami share URL. When set, it is embedded at /analytics.
+      - name: head_html
+        label: Head scripts
+        widget: code
+        default_language: html
+        allow_language_selection: false
+        output_code_only: true
+        required: false
+        hint: Raw HTML injected into the <head> of every page (analytics/tracking snippets).
+      - name: footer_html
+        label: Footer scripts
+        widget: code
+        default_language: html
+        allow_language_selection: false
+        output_code_only: true
+        required: false
+        hint: Raw HTML injected before </body> on every page.

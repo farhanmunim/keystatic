@@ -1,0 +1,27 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import { paths } from '../../lib/content';
+
+const categories = (await getCollection('categories')).sort((a, b) => a.data.name.localeCompare(b.data.name));
+const roots = categories.filter((c) => !c.data.parent || !categories.some((p) => p.id === c.data.parent));
+const childrenOf = (id: string) => categories.filter((c) => c.data.parent === id);
+---
+
+<Layout title="Categories" description="Browse posts by category.">
+  <h1>Categories</h1>
+  <ul>
+    {roots.map((root) => (
+      <li>
+        <a href={`${paths.categories}/${root.id}`}>{root.data.name}</a>
+        {childrenOf(root.id).length > 0 && (
+          <ul>
+            {childrenOf(root.id).map((child) => (
+              <li><a href={`${paths.categories}/${child.id}`}>{child.data.name}</a></li>
+            ))}
+          </ul>
+        )}
+      </li>
+    ))}
+  </ul>
+</Layout>

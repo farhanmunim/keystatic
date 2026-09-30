@@ -1,0 +1,32 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import Card from './Card.astro';
+import Byline from './Byline.astro';
+import TagList from './TagList.astro';
+import { paths } from '../lib/content';
+
+interface Props {
+  posts: CollectionEntry<'posts'>[];
+}
+const { posts } = Astro.props;
+---
+
+{posts.length === 0 ? (
+  <p class="muted">No posts yet.</p>
+) : (
+  <ul class="grid">
+    {posts.map((post) => (
+      <Card
+        href={`${paths.posts}/${post.id}`}
+        title={post.data.title}
+        summary={post.data.excerpt}
+        cover={post.data.cover}
+        coverAlt={post.data.cover_alt}
+        featured={post.data.featured}
+      >
+        <Byline author={post.data.author} date={post.data.date} />
+        <TagList tags={post.data.tags} />
+      </Card>
+    ))}
+  </ul>
+)}

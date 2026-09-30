@@ -1,0 +1,16 @@
+---
+import { getTags, paths } from '../lib/content';
+
+interface Props {
+  tags: string[];
+}
+const tags = await getTags(Astro.props.tags);
+---
+
+{tags.length > 0 && (
+  <ul class="pills" aria-label="Tags">
+    {tags.map((tag) => (
+      <li><a href={`${paths.tags}/${tag.id}`}>#{tag.data.name}</a></li>
+    ))}
+  </ul>
+)}

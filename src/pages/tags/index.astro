@@ -1,0 +1,16 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import { paths } from '../../lib/content';
+
+const tags = (await getCollection('tags')).sort((a, b) => a.data.name.localeCompare(b.data.name));
+---
+
+<Layout title="Tags" description="Browse content by tag.">
+  <h1>Tags</h1>
+  <ul class="pills">
+    {tags.map((tag) => (
+      <li><a href={`${paths.tags}/${tag.id}`}>#{tag.data.name}</a></li>
+    ))}
+  </ul>
+</Layout>

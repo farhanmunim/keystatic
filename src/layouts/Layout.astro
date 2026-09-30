@@ -1,0 +1,126 @@
+---
+import { getCollection } from 'astro:content';
+import { getSettings, paths } from '../lib/content';
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
+const settings = await getSettings();
+const { title, description = settings.description, image = settings.share_image } = Astro.props;
+const pageTitle = title ? `${title} · ${settings.name}` : settings.name;
+const pages = (await getCollection('pages')).sort((a, b) => a.data.title.localeCompare(b.data.title));
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const imageUrl = image ? new URL(image, Astro.site).href : undefined;
+const nav = [
+  { href: paths.posts, label: 'Blog' },
+  { href: paths.projects, label: 'Projects' },
+  { href: paths.services, label: 'Services' },
+  { href: paths.resources, label: 'Resources' },
+  ...pages.map((p) => ({ href: `${paths.pages}/${p.id}`, label: p.data.title })),
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{pageTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={canonical} />
+    {settings.favicon && <link rel="icon" href={settings.favicon} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={settings.name} />
+    <meta property="og:title" content={title ?? settings.name} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={canonical} />
+    {imageUrl && <meta property="og:image" content={imageUrl} />}
+    <meta name="twitter:card" content={imageUrl ? 'summary_large_image' : 'summary'} />
+    <meta name="generator" content={Astro.generator} />
+    {settings.head_html && <Fragment set:html={settings.head_html} />}
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">
+        {settings.logo && <img src={settings.logo} alt="" width="32" height="32" />}
+        <span>{settings.name}</span>
+      </a>
+      <nav aria-label="Main">
+        {nav.map(({ href, label }) => <a href={href} aria-current={Astro.url.pathname.startsWith(href) ? 'page' : undefined}>{label}</a>)}
+      </nav>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      {settings.social.length > 0 && (
+        <ul class="social">
+          {settings.social.map((s) => (
+            <li>
+              <a href={s.url} rel="me noopener">{s.platform}{s.handle ? ` (${s.handle})` : ''}</a>
+            </li>
+          ))}
+        </ul>
+      )}
+      {settings.footer_text && <p>{settings.footer_text}</p>}
+      <p class="muted"><a href="/docs">Editor guide</a> · <a href="/admin/">Admin</a></p>
+    </footer>
+    {settings.footer_html && <Fragment set:html={settings.footer_html} />}
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --text: #1f2933;
+    --muted: #616e7c;
+    --line: #e4e7eb;
+    --accent: #2f54eb;
+    --bg-soft: #f5f7fa;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  a { color: var(--accent); }
+  img { max-width: 100%; height: auto; }
+  main, .site-header, .site-footer { max-width: 60rem; margin: 0 auto; padding: 1rem; }
+  .site-header { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; text-decoration: none; color: inherit; }
+  .site-header nav { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .site-header nav a { text-decoration: none; color: var(--muted); }
+  .site-header nav a[aria-current] { color: var(--text); font-weight: 600; }
+  .site-footer { border-top: 1px solid var(--line); margin-top: 3rem; color: var(--muted); font-size: .9rem; }
+  .social { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 1rem; }
+  .muted { color: var(--muted); }
+  .grid { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); padding: 0; list-style: none; }
+  .card { border: 1px solid var(--line); border-radius: .5rem; overflow: hidden; display: flex; flex-direction: column; }
+  .card img { aspect-ratio: 1200 / 630; object-fit: cover; width: 100%; }
+  .card-body { padding: 1rem; display: flex; flex-direction: column; gap: .5rem; }
+  .card h3 { margin: 0; }
+  .card h3 a { color: inherit; text-decoration: none; }
+  .badge { display: inline-block; font-size: .75rem; background: var(--accent); color: #fff; padding: .1rem .5rem; border-radius: 999px; }
+  .pills { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; }
+  .pills a { display: inline-block; background: var(--bg-soft); border: 1px solid var(--line); padding: .1rem .6rem; border-radius: 999px; text-decoration: none; font-size: .85rem; color: var(--text); }
+  .byline { display: flex; align-items: center; gap: .75rem; color: var(--muted); font-size: .9rem; }
+  .byline img { width: 2.5rem; height: 2.5rem; border-radius: 50%; }
+  .cover { border-radius: .5rem; margin: 1rem 0; }
+  .prose { max-width: 45rem; }
+  .prose blockquote { border-left: 4px solid var(--line); margin-left: 0; padding-left: 1rem; color: var(--muted); }
+  .prose pre { background: var(--bg-soft); padding: 1rem; overflow: auto; border-radius: .5rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1rem 0; }
+  .button { display: inline-block; background: var(--accent); color: #fff; padding: .5rem 1rem; border-radius: .4rem; text-decoration: none; }
+  .button.secondary { background: var(--bg-soft); color: var(--text); border: 1px solid var(--line); }
+  .breadcrumb { list-style: none; padding: 0; display: flex; gap: .5rem; color: var(--muted); font-size: .9rem; }
+  .breadcrumb li + li::before { content: '/'; margin-right: .5rem; }
+  section + section { margin-top: 3rem; }
+  .analytics-frame { width: 100%; min-height: 80vh; border: 1px solid var(--line); border-radius: .5rem; }
+</style>

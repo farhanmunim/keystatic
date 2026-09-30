@@ -1,0 +1,16 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import CatalogueDetail from '../../components/CatalogueDetail.astro';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('resources');
+  return entries.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+---
+
+<Layout title={entry.data.title} description={entry.data.description} image={entry.data.cover}>
+  <CatalogueDetail entry={entry} />
+</Layout>

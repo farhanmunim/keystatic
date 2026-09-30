@@ -1,0 +1,34 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import Byline from '../../components/Byline.astro';
+import TagList from '../../components/TagList.astro';
+import { getCategories, paths } from '../../lib/content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts');
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { data } = post;
+const categories = await getCategories(data.categories);
+const { Content } = await render(post);
+---
+
+<Layout title={data.title} description={data.excerpt} image={data.cover}>
+  <article class="prose">
+    {categories.length > 0 && (
+      <ul class="pills" aria-label="Categories">
+        {categories.map((c) => (
+          <li><a href={`${paths.categories}/${c.id}`}>{c.data.name}</a></li>
+        ))}
+      </ul>
+    )}
+    <h1>{data.title}</h1>
+    <Byline author={data.author} date={data.date} />
+    {data.cover && <img class="cover" src={data.cover} alt={data.cover_alt ?? ''} width="1200" height="630" />}
+    <Content />
+    <TagList tags={data.tags} />
+  </article>
+</Layout>

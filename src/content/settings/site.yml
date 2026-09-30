@@ -1,0 +1,17 @@
+name: Acme Studio
+tagline: Design, code and words for the web
+description: Acme Studio is a small team building fast, accessible websites. Read the blog, browse projects and get in touch.
+logo: /uploads/logo.svg
+favicon: /uploads/favicon.svg
+share_image: /uploads/share-image.svg
+footer_text: © 2026 Acme Studio. All rights reserved.
+social:
+  - platform: GitHub
+    url: https://github.com/acme-studio
+    handle: '@acme-studio'
+  - platform: Bluesky
+    url: https://bsky.app/profile/acme.example
+    handle: '@acme.example'
+analytics_url: ''
+head_html: ''
+footer_html: ''

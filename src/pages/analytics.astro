@@ -1,0 +1,17 @@
+---
+// Embeds the read-only Umami share dashboard configured in Site Settings.
+// Note: this is a static page, so it is not restricted to logged-in users.
+import Layout from '../layouts/Layout.astro';
+import { getSettings } from '../lib/content';
+
+const { analytics_url } = await getSettings();
+---
+
+<Layout title="Analytics">
+  <h1>Analytics</h1>
+  {analytics_url ? (
+    <iframe class="analytics-frame" src={analytics_url} title="Analytics dashboard" loading="lazy"></iframe>
+  ) : (
+    <p class="muted">No analytics dashboard is configured. Add an Umami share URL under Site Settings → Analytics dashboard link.</p>
+  )}
+</Layout>

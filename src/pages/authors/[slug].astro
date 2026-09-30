@@ -1,0 +1,35 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import PostList from '../../components/PostList.astro';
+import { authorName, getPosts } from '../../lib/content';
+
+export async function getStaticPaths() {
+  const authors = await getCollection('authors');
+  return authors.map((author) => ({ params: { slug: author.id }, props: { author } }));
+}
+
+const { author } = Astro.props;
+const name = authorName(author);
+const { Content } = await render(author);
+const posts = (await getPosts()).filter((p) => p.data.author === author.id);
+---
+
+<Layout title={name} description={`Posts by ${name}.`} image={author.data.avatar}>
+  <article class="prose">
+    {author.data.avatar && <img src={author.data.avatar} alt="" width="128" height="128" style="border-radius:50%" />}
+    <h1>{name}</h1>
+    {author.data.social.length > 0 && (
+      <ul class="pills" aria-label="Social links">
+        {author.data.social.map((s) => (
+          <li><a href={s.url} rel="me noopener">{s.platform}{s.handle ? ` (${s.handle})` : ''}</a></li>
+        ))}
+      </ul>
+    )}
+    <Content />
+  </article>
+  <section>
+    <h2>Posts by {name}</h2>
+    <PostList posts={posts} />
+  </section>
+</Layout>

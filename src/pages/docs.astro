@@ -1,0 +1,40 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Editor guide" description="How to edit this website.">
+  <article class="prose">
+    <h1>Editor guide</h1>
+    <p>This site is edited with <strong>Sveltia CMS</strong>, a Git-based CMS. Everything you save is stored as a file in the site's GitHub repository, and the live site rebuilds automatically after you publish.</p>
+
+    <h2>Signing in</h2>
+    <ol>
+      <li>Open <a href="/admin/">/admin/</a>.</li>
+      <li>Click <strong>Sign in with GitHub</strong>. You need write access to the repository.</li>
+    </ol>
+
+    <h2>What you can edit</h2>
+    <ul>
+      <li><strong>Pages</strong> – one-off pages such as About or Contact, served from the site root (e.g. <code>/about</code>).</li>
+      <li><strong>Posts</strong> – blog posts under <code>/blog</code>, with categories, tags, a publish date and a "featured" flag.</li>
+      <li><strong>Projects</strong>, <strong>Services</strong>, <strong>Resources</strong> – catalogue items under <code>/projects</code>, <code>/services</code> and <code>/resources</code>.</li>
+      <li><strong>Categories</strong> – nested sections for posts. Set a parent to nest one category under another.</li>
+      <li><strong>Tags</strong> – flat labels shared by posts, projects, services and resources. Create a tag here before using it.</li>
+      <li><strong>Authors</strong> – public author profiles (name, avatar, bio, social links) shown on the site.</li>
+      <li><strong>Site Settings</strong> – site name, tagline, logo, favicon, footer text, social links, analytics link and head/footer scripts.</li>
+      <li><strong>Assets</strong> (left sidebar) – the shared media library for every image and file.</li>
+    </ul>
+
+    <h2>Drafts and publishing</h2>
+    <p>Pages, posts, projects, services and resources use the <strong>editorial workflow</strong>. A new entry starts as a <em>Draft</em>. Move it to <em>In review</em> and <em>Ready</em> as it progresses, then click <strong>Publish</strong>. Only published entries appear on the live site. Every version is kept in Git history.</p>
+
+    <h2>Slugs and URLs</h2>
+    <p>The slug (the last part of the URL) is generated from the title: lowercase, hyphenated, no accents. You can edit it in the entry sidebar before or after saving.</p>
+
+    <h2>Images and files</h2>
+    <p>Upload images and files through any image/file field or via <strong>Assets</strong>. Originals are stored untouched in <code>public/uploads</code>. Always fill in the alt text field next to a cover image.</p>
+
+    <h2>Deploys</h2>
+    <p>Publishing commits to the production branch. Cloudflare Pages notices the commit and rebuilds the site within a couple of minutes. Saving a draft does not rebuild the live site.</p>
+  </article>
+</Layout>

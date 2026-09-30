@@ -1,0 +1,35 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import PostList from '../../components/PostList.astro';
+import { getCategoryTrail, getCategoryTree, getPosts, paths } from '../../lib/content';
+
+export async function getStaticPaths() {
+  const categories = await getCollection('categories');
+  return categories.map((category) => ({ params: { slug: category.id }, props: { category } }));
+}
+
+const { category } = Astro.props;
+const trail = await getCategoryTrail(category);
+const tree = await getCategoryTree(category.id); // this category + nested ones
+const children = (await getCollection('categories')).filter((c) => c.data.parent === category.id);
+const posts = (await getPosts()).filter((p) => p.data.categories.some((id) => tree.includes(id)));
+---
+
+<Layout title={category.data.name} description={`Posts in ${category.data.name}.`}>
+  <ol class="breadcrumb">
+    <li><a href={paths.categories}>Categories</a></li>
+    {trail.map((c) => (
+      <li>{c.id === category.id ? c.data.name : <a href={`${paths.categories}/${c.id}`}>{c.data.name}</a>}</li>
+    ))}
+  </ol>
+  <h1>{category.data.name}</h1>
+  {children.length > 0 && (
+    <ul class="pills" aria-label="Subcategories">
+      {children.map((c) => (
+        <li><a href={`${paths.categories}/${c.id}`}>{c.data.name}</a></li>
+      ))}
+    </ul>
+  )}
+  <PostList posts={posts} />
+</Layout>

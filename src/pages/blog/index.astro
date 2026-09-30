@@ -1,0 +1,21 @@
+---
+import { getCollection } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+import PostList from '../../components/PostList.astro';
+import { getPosts, paths } from '../../lib/content';
+
+const posts = await getPosts();
+const categories = (await getCollection('categories')).sort((a, b) => a.data.name.localeCompare(b.data.name));
+---
+
+<Layout title="Blog" description="All blog posts.">
+  <h1>Blog</h1>
+  {categories.length > 0 && (
+    <ul class="pills" aria-label="Categories">
+      {categories.map((c) => (
+        <li><a href={`${paths.categories}/${c.id}`}>{c.data.name}</a></li>
+      ))}
+    </ul>
+  )}
+  <PostList posts={posts} />
+</Layout>

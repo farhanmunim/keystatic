@@ -1,0 +1,24 @@
+---
+// Pages collection, served from the site root: /about, /contact, ...
+import { getCollection, render } from 'astro:content';
+import Layout from '../layouts/Layout.astro';
+import Byline from '../components/Byline.astro';
+
+export async function getStaticPaths() {
+  const pages = await getCollection('pages');
+  return pages.map((page) => ({ params: { slug: page.id }, props: { page } }));
+}
+
+const { page } = Astro.props;
+const { data } = page;
+const { Content } = await render(page);
+---
+
+<Layout title={data.title} description={data.description} image={data.cover}>
+  <article class="prose">
+    <h1>{data.title}</h1>
+    <Byline author={data.author} />
+    {data.cover && <img class="cover" src={data.cover} alt={data.cover_alt ?? ''} width="1200" height="630" />}
+    <Content />
+  </article>
+</Layout>

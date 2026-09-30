@@ -1,0 +1,21 @@
+---
+interface Props {
+  href: string;
+  title: string;
+  summary?: string;
+  cover?: string;
+  coverAlt?: string;
+  featured?: boolean;
+}
+const { href, title, summary, cover, coverAlt = '', featured = false } = Astro.props;
+---
+
+<li class="card">
+  {cover && <a href={href}><img src={cover} alt={coverAlt} loading="lazy" width="1200" height="630" /></a>}
+  <div class="card-body">
+    {featured && <span class="badge">Featured</span>}
+    <h3><a href={href}>{title}</a></h3>
+    {summary && <p class="muted">{summary}</p>}
+    <slot />
+  </div>
+</li>

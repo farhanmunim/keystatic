@@ -1,0 +1,12 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CatalogueList from '../../components/CatalogueList.astro';
+import { getCatalogue, paths } from '../../lib/content';
+
+const services = await getCatalogue('services');
+---
+
+<Layout title="Services" description="What we offer.">
+  <h1>Services</h1>
+  <CatalogueList entries={services} base={paths.services} />
+</Layout>

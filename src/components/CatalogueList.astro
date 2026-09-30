@@ -1,0 +1,37 @@
+---
+/**
+ * Card grid shared by Projects, Services and Resources.
+ */
+import type { CollectionEntry } from 'astro:content';
+import Card from './Card.astro';
+import TagList from './TagList.astro';
+
+type Entry = CollectionEntry<'projects'> | CollectionEntry<'services'> | CollectionEntry<'resources'>;
+
+interface Props {
+  entries: Entry[];
+  base: string;
+}
+const { entries, base } = Astro.props;
+const summary = (e: Entry) =>
+  'summary' in e.data ? e.data.summary : 'description' in e.data ? e.data.description : undefined;
+---
+
+{entries.length === 0 ? (
+  <p class="muted">Nothing here yet.</p>
+) : (
+  <ul class="grid">
+    {entries.map((e) => (
+      <Card
+        href={`${base}/${e.id}`}
+        title={e.data.title}
+        summary={summary(e)}
+        cover={e.data.cover}
+        coverAlt={e.data.cover_alt}
+        featured={e.data.featured}
+      >
+        <TagList tags={e.data.tags} />
+      </Card>
+    ))}
+  </ul>
+)}

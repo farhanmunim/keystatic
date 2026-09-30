@@ -1,0 +1,12 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import CatalogueList from '../../components/CatalogueList.astro';
+import { getCatalogue, paths } from '../../lib/content';
+
+const resources = await getCatalogue('resources');
+---
+
+<Layout title="Resources" description="Links and downloads.">
+  <h1>Resources</h1>
+  <CatalogueList entries={resources} base={paths.resources} />
+</Layout>

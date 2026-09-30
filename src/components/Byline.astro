@@ -1,0 +1,21 @@
+---
+import { authorName, formatDate, getAuthor, paths } from '../lib/content';
+
+interface Props {
+  author?: string;
+  date?: Date;
+}
+const { author: authorId, date } = Astro.props;
+const author = await getAuthor(authorId);
+---
+
+{(author || date) && (
+  <p class="byline">
+    {author?.data.avatar && <img src={author.data.avatar} alt="" width="40" height="40" />}
+    <span>
+      {author && <a href={`${paths.authors}/${author.id}`}>{authorName(author)}</a>}
+      {author && date && ' · '}
+      {date && <time datetime={date.toISOString()}>{formatDate(date)}</time>}
+    </span>
+  </p>
+)}

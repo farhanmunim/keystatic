@@ -1,0 +1,32 @@
+---
+/**
+ * Detail view shared by Projects, Services and Resources.
+ */
+import { render, type CollectionEntry } from 'astro:content';
+import Byline from './Byline.astro';
+import TagList from './TagList.astro';
+
+interface Props {
+  entry: CollectionEntry<'projects'> | CollectionEntry<'services'> | CollectionEntry<'resources'>;
+}
+const { entry } = Astro.props;
+const { data } = entry;
+const url = 'url' in data ? data.url : undefined;
+const attachment = 'attachment' in data ? data.attachment : undefined;
+const { Content } = await render(entry);
+---
+
+<article class="prose">
+  {data.featured && <span class="badge">Featured</span>}
+  <h1>{data.title}</h1>
+  <Byline author={data.author} />
+  <TagList tags={data.tags} />
+  {data.cover && <img class="cover" src={data.cover} alt={data.cover_alt ?? ''} width="1200" height="630" />}
+  {(url || attachment) && (
+    <p class="actions">
+      {url && <a class="button" href={url} rel="noopener">Visit link</a>}
+      {attachment && <a class="button secondary" href={attachment} download>Download attachment</a>}
+    </p>
+  )}
+  <Content />
+</article>
