@@ -8,7 +8,7 @@ import cloudflare from '@astrojs/cloudflare';
 // https://astro.build/config
 export default defineConfig({
   // Update this to the site's production URL (used for canonical links and sitemaps).
-  site: 'https://example.com',
+  site: 'https://keystatic.farhan.app',
   // The site itself is fully static. The adapter only serves Keystatic's /api/keystatic
   // routes (GitHub sign-in) and the /keystatic admin UI; every content page is prerendered.
   output: 'static',
