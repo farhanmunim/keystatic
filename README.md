@@ -45,16 +45,43 @@ npm run build      # production build into dist/
 In dev, Keystatic runs in **local mode**: it edits the files in your checkout directly, with no
 sign-in. Production uses GitHub storage (`import.meta.env.PROD` in `keystatic.config.ts`).
 
+## Deploying to Cloudflare
+
+The Cloudflare adapter builds a Worker with static assets (`dist/server` + `dist/client`).
+
+1. In the Cloudflare dashboard go to **Workers & Pages → Create → Import a repository** and pick
+   this repository. Production branch: `main`.
+2. Build command `npm run build`, deploy command `npx wrangler deploy`. Node 22 is picked up from
+   `.node-version`.
+3. After the first deploy, note the site URL (`https://astro-keystatic-site.<account>.workers.dev`)
+   and set `site` in `astro.config.mjs` to it (or your custom domain).
+
+Every push to `main` rebuilds the site, so saving on `main` in the CMS deploys it.
+
 ## Setting up CMS sign-in (one-time)
 
-1. Run `npm run dev`, open `/keystatic` and follow **Set up GitHub**. This creates a GitHub App and
-   writes `KEYSTATIC_GITHUB_CLIENT_ID`, `KEYSTATIC_GITHUB_CLIENT_SECRET`, `KEYSTATIC_SECRET` and
-   `PUBLIC_KEYSTATIC_GITHUB_APP_SLUG` to `.env` (see `.env.example`).
-   Set the app's callback URL to `https://<your-site>/api/keystatic/github/oauth/callback`.
-2. Install the app on this repository, and add the same four variables to your Cloudflare project.
-3. Make sure `REPO` in `keystatic.config.ts` matches your repository.
+Keystatic signs editors in with a GitHub App you own.
 
-Anyone with **write** access to the GitHub repository can sign in and edit content.
+1. GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App**:
+   * Homepage URL: your site URL
+   * Callback URL: `https://<your-site>/api/keystatic/github/oauth/callback`
+   * Check **Request user authorization (OAuth) during installation**
+   * Uncheck **Webhook → Active**
+   * Repository permissions: **Contents: Read and write**, **Pull requests: Read-only**
+     (Metadata: Read-only is added automatically)
+   * Where can it be installed: **Only on this account**
+2. After creating it, note the **App slug** (from its URL), the **Client ID**, and generate a
+   **Client secret**. Then **Install App** on the `keystatic` repository.
+3. In Cloudflare → your Worker → **Settings → Variables and Secrets**, add these (and also under
+   **Settings → Build → Variables**, because the slug is inlined at build time):
+   * `KEYSTATIC_GITHUB_CLIENT_ID`: the Client ID
+   * `KEYSTATIC_GITHUB_CLIENT_SECRET`: the Client secret (secret)
+   * `KEYSTATIC_SECRET`: any random string of 32+ characters, e.g. `openssl rand -hex 32` (secret)
+   * `PUBLIC_KEYSTATIC_GITHUB_APP_SLUG`: the App slug
+4. Redeploy, then open `/keystatic` and sign in with GitHub.
+
+Make sure `REPO` in `keystatic.config.ts` matches your repository. Anyone with **write** access to
+the GitHub repository can sign in and edit content.
 
 ## Content model
 
