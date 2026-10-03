@@ -1,10 +1,195 @@
 ---
 import Layout from '../layouts/Layout.astro';
+
+const repo = 'https://github.com/farhanmunim/keystatic';
 ---
 
-<Layout title="Editor guide" description="How to edit this website.">
-  <article class="prose">
-    <h1>Editor guide</h1>
+<Layout title="Docs" description="How this website is built, deployed and edited.">
+  <article class="prose docs">
+    <h1>Docs</h1>
+    <p>
+      How this website is built, where the code lives, how it is deployed and how editors sign in,
+      followed by a plain-language editor guide. Nothing secret is stored in the repository or shown here.
+    </p>
+
+    <nav aria-label="On this page" class="toc">
+      <strong>On this page</strong>
+      <ol>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#diagram">How the pieces fit</a></li>
+        <li><a href="#code">Where the code lives</a></li>
+        <li><a href="#deploy">How it is deployed</a></li>
+        <li><a href="#worker">The Cloudflare Worker</a></li>
+        <li><a href="#auth">Authentication (GitHub App)</a></li>
+        <li><a href="#storage">Editing and storage modes</a></li>
+        <li><a href="#content">Content model</a></li>
+        <li><a href="#seo">Search engines and analytics</a></li>
+        <li><a href="#import">WordPress import</a></li>
+        <li><a href="#limits">Known differences</a></li>
+        <li><a href="#editor-guide">Editor guide</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="overview">Overview</h2>
+    <p>
+      A static <a href="https://astro.build">Astro</a> website whose content is edited in a browser with
+      <a href="https://keystatic.com">Keystatic</a> and stored as plain files in a GitHub repository.
+      There is no database: the repository is the database, and every edit is a Git commit.
+      It is hosted on a Cloudflare Worker.
+    </p>
+    <table>
+      <thead><tr><th>Part</th><th>What we use</th></tr></thead>
+      <tbody>
+        <tr><td>Website</td><td>Astro 7, fully static (every public page is built ahead of time)</td></tr>
+        <tr><td>CMS</td><td>Keystatic, admin at <a href="/keystatic"><code>/keystatic</code></a> (<code>/admin</code> redirects there)</td></tr>
+        <tr><td>Content storage</td><td>Markdoc (<code>.mdoc</code>) and YAML files in a GitHub repository</td></tr>
+        <tr><td>Hosting</td><td>One Cloudflare Worker with static assets, built by Cloudflare Workers Builds</td></tr>
+        <tr><td>Domain</td><td><code>keystatic.farhan.app</code>, a custom domain on Cloudflare</td></tr>
+        <tr><td>Sign-in</td><td>A GitHub App (not an OAuth App)</td></tr>
+        <tr><td>Analytics</td><td>Self-hosted Umami at <code>mochi.farhan.app</code></td></tr>
+        <tr><td>Original content</td><td>Imported once from a headless WordPress site at <code>cms.farhan.app</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="diagram">How the pieces fit</h2>
+    <pre><code>Editor's browser ──▶ /keystatic (Cloudflare Worker)
+       │                    │
+       │ sign in            │ code → token exchange (server side)
+       ▼                    ▼
+     GitHub  ◀── commits, branches, pull requests (browser → GitHub API)
+       │
+       │ push to main
+       ▼
+Cloudflare Workers Builds:  npm run build  →  npx wrangler deploy
+       │
+       ▼
+Cloudflare Worker "keystatic"  ◀── visitors (custom domain)
+   • static assets: every public page, images, CSS
+   • server routes: /keystatic and /api/keystatic/*</code></pre>
+
+    <h2 id="code">Where the code lives</h2>
+    <p>
+      One GitHub repository: <a href={repo}>farhanmunim/keystatic</a>. The <code>main</code> branch is the
+      production branch.
+    </p>
+    <table>
+      <thead><tr><th>Path</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr><td><code>keystatic.config.ts</code></td><td>The CMS: collections, fields, sidebar groups, storage mode</td></tr>
+        <tr><td><code>astro.config.mjs</code></td><td>Astro setup: integrations, Cloudflare adapter, site URL, <code>/admin</code> redirect</td></tr>
+        <tr><td><code>src/content.config.ts</code></td><td>Astro content schemas (mirror the CMS)</td></tr>
+        <tr><td><code>src/content/</code></td><td>All content, one folder per collection</td></tr>
+        <tr><td><code>public/uploads/</code></td><td>The shared media folder, served at <code>/uploads/…</code></td></tr>
+        <tr><td><code>src/pages/</code>, <code>src/layouts/</code>, <code>src/components/</code></td><td>Routes and templates for the public site</td></tr>
+        <tr><td><code>scripts/import-wordpress.py</code></td><td>The one-off WordPress importer</td></tr>
+        <tr><td><code>ARCHITECTURE.md</code>, <code>README.md</code></td><td>The same information as this page, in the repository</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="deploy">How it is deployed</h2>
+    <ol>
+      <li>An editor saves content in Keystatic on <code>main</code>, or merges a pull request into it. Either way it is a commit to <code>main</code>.</li>
+      <li>Cloudflare Workers Builds, connected to the repository, starts a build: <code>npm run build</code>.</li>
+      <li>The build produces static pages plus the Worker code. Then <code>npx wrangler deploy</code> publishes it.</li>
+      <li>The site is live on the custom domain, usually within a minute or two.</li>
+    </ol>
+    <p>
+      Work on other branches (drafts) does not change the live site. The Worker's name must match the
+      package name in the repository, because the build generates its Cloudflare configuration from it.
+    </p>
+
+    <h2 id="worker">The Cloudflare Worker</h2>
+    <p>One Worker serves everything:</p>
+    <ul>
+      <li><strong>Public pages are static.</strong> Visitors get prebuilt files from Cloudflare's asset store, so no server code runs for normal page views.</li>
+      <li><strong>Only the CMS runs server code.</strong> The Worker handles <code>/keystatic</code> (the admin screen) and <code>/api/keystatic/*</code> (sign-in and token refresh).</li>
+      <li><strong>Adapter.</strong> The <code>@astrojs/cloudflare</code> adapter builds the Worker and adds its default bindings for assets, sessions and images.</li>
+      <li><strong>Secrets</strong> live in Cloudflare's variables and secrets settings, never in the repository. Their names are listed under authentication below.</li>
+    </ul>
+
+    <h2 id="auth">Authentication (GitHub App)</h2>
+    <p>
+      Editors sign in with <strong>GitHub</strong> using a <strong>GitHub App</strong>. It is deliberately not a
+      classic OAuth App: Keystatic needs the short-lived access tokens and refresh tokens that only GitHub Apps
+      issue, and an OAuth App's sign-in fails.
+    </p>
+    <ul>
+      <li>Anyone who can sign in with GitHub <em>and</em> has write access to the repository can edit. There are no separate CMS accounts, passwords or roles.</li>
+      <li>The app is installed on this one repository only. Its permissions are: contents read and write, pull requests read, metadata read. Webhooks are off.</li>
+      <li>Its callback address is <code>/api/keystatic/github/oauth/callback</code> on this site.</li>
+    </ul>
+    <p>Sign-in flow:</p>
+    <ol>
+      <li>The editor opens <code>/keystatic</code> and is sent to GitHub to authorise the app.</li>
+      <li>GitHub returns to the callback address with a one-time code.</li>
+      <li>The Worker exchanges the code for tokens, server side, using the app's client credentials.</li>
+      <li>The Worker stores the access token in a cookie and the refresh token in an encrypted, HTTP-only cookie.</li>
+      <li>From then on the Keystatic screen talks to the GitHub API directly from the browser to read files, commit, and create branches and pull requests. The Worker is only involved in sign-in and token refresh.</li>
+    </ol>
+    <p>The Worker needs four settings (names only, values are kept private):</p>
+    <table>
+      <thead><tr><th>Name</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>KEYSTATIC_GITHUB_CLIENT_ID</code></td><td>Identifies the GitHub App</td></tr>
+        <tr><td><code>KEYSTATIC_GITHUB_CLIENT_SECRET</code></td><td>Lets the Worker exchange sign-in codes for tokens</td></tr>
+        <tr><td><code>KEYSTATIC_SECRET</code></td><td>Encrypts the refresh-token cookie</td></tr>
+        <tr><td><code>PUBLIC_KEYSTATIC_GITHUB_APP_SLUG</code></td><td>The app's public name, used for install links. Needed at build time</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="storage">Editing and storage modes</h2>
+    <ul>
+      <li><strong>Production:</strong> content is read from and written to GitHub, on the repository's default branch (<code>main</code>).</li>
+      <li><strong>Local development:</strong> <code>npm run dev</code> runs Keystatic in local mode. It edits the files in a checkout directly, with no sign-in.</li>
+      <li><strong>Drafts</strong> are Git branches. Create a branch in the editor, save there, open a pull request and merge it to publish. There is no draft flag.</li>
+      <li><strong>Version history</strong> is Git history.</li>
+    </ul>
+
+    <h2 id="content">Content model</h2>
+    <table>
+      <thead><tr><th>Collection</th><th>Served at</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Pages</td><td><code>/&lt;slug&gt;</code></td><td>One-off pages such as About</td></tr>
+        <tr><td>Posts</td><td><code>/blog/&lt;slug&gt;</code></td><td>Categories, tags, publish date, featured flag</td></tr>
+        <tr><td>Projects</td><td><code>/projects/&lt;slug&gt;</code></td><td>Summary, live URL, optional attachment</td></tr>
+        <tr><td>Services</td><td><code>/services/&lt;slug&gt;</code></td><td>Summary and rich text</td></tr>
+        <tr><td>Resources</td><td><code>/resources/&lt;slug&gt;</code></td><td>External link and/or downloadable file</td></tr>
+        <tr><td>Categories</td><td><code>/category/&lt;slug&gt;</code></td><td>Can be nested under a parent</td></tr>
+        <tr><td>Tags</td><td><code>/tags/&lt;slug&gt;</code></td><td>Shared by posts, projects, services, resources</td></tr>
+        <tr><td>Authors</td><td><code>/authors/&lt;slug&gt;</code></td><td>Public profile with bio and social links</td></tr>
+        <tr><td>Site Settings</td><td>n/a</td><td>Name, images, social links, scripts, search-engine switch</td></tr>
+      </tbody>
+    </table>
+    <p>Items link to each other by slug: an author, tags and categories are the file names of those entries. All uploads share one folder, <code>public/uploads</code>.</p>
+
+    <h2 id="seo">Search engines and analytics</h2>
+    <ul>
+      <li><strong>Hide from search engines.</strong> A Site Settings switch adds a <code>noindex</code> meta tag to every page and makes <code>/robots.txt</code> disallow all crawlers. It is decided when the site is built, so a change applies after the next deploy.</li>
+      <li><strong>Analytics.</strong> Visits are measured with a self-hosted Umami instance. Its tracking snippet is a Site Settings field and is added to the head of every page. An optional read-only Umami share link can be embedded at <a href="/analytics"><code>/analytics</code></a>.</li>
+    </ul>
+
+    <h2 id="import">WordPress import</h2>
+    <p>
+      The existing content came from a headless WordPress site. <code>scripts/import-wordpress.py</code> reads its
+      public REST API and writes Keystatic-format files: posts, categories, tags, projects, resources,
+      "solutions" (now Services), social links, the author and the media library. It can be re-run and replaces
+      the imported content each time.
+    </p>
+
+    <h2 id="limits">Known differences from a database-backed CMS</h2>
+    <ul>
+      <li>No separate user accounts, roles or password resets: access is GitHub write access.</li>
+      <li>Drafts are branches and pull requests, not a draft switch.</li>
+      <li>No shared media library to browse: each image or file field uploads its own file. Alt text is a separate field.</li>
+      <li>The post publish date defaults to the time the post is created, not first published.</li>
+      <li>URL prefixes (such as <code>/blog</code>) are fixed in the code, not editable in the CMS.</li>
+      <li>No deploy-hook setting: a commit to <code>main</code> triggers the build.</li>
+      <li>No CSV or JSON import and export: content is plain files in Git.</li>
+    </ul>
+
+    <hr />
+
+    <h1 id="editor-guide">Editor guide</h1>
     <p>This site is edited with <strong>Keystatic</strong>, a Git-based CMS. Everything you save is stored as a file in the site's GitHub repository, and the live site rebuilds automatically after you publish.</p>
 
     <h2>Signing in</h2>
@@ -21,8 +206,8 @@ import Layout from '../layouts/Layout.astro';
       <li><strong>Categories</strong> – nested sections for posts. Set a parent to nest one category under another.</li>
       <li><strong>Tags</strong> – flat labels shared by posts, projects, services and resources. Create a tag here before using it.</li>
       <li><strong>Authors</strong> – public author profiles (name, avatar, bio, social links) shown on the site.</li>
-      <li><strong>Site Settings</strong> – site name, tagline, logo, favicon, footer text, social links, analytics link and head/footer scripts.</li>
-          </ul>
+      <li><strong>Site Settings</strong> – site name, tagline, logo, favicon, footer text, social links, analytics link, search-engine switch and head/footer scripts.</li>
+    </ul>
 
     <h2>Drafts and publishing</h2>
     <p>Keystatic uses Git branches for drafts. While editing, use the branch menu at the top to <strong>create a new branch</strong> and save your work there. A branch never reaches the live site. When you are happy, click <strong>Create pull request</strong>, review it on GitHub and merge it to publish. Saving directly on the <code>main</code> branch publishes immediately. Every version is kept in Git history.</p>
@@ -34,6 +219,18 @@ import Layout from '../layouts/Layout.astro';
     <p>Upload images and files through any image or file field. Everything goes into one shared folder, <code>public/uploads</code>, and originals are stored untouched. Always fill in the alt text field next to a cover image.</p>
 
     <h2>Deploys</h2>
-    <p>Saving on the production branch, or merging a pull request into it, commits to that branch. Cloudflare Pages notices the commit and rebuilds the site within a couple of minutes. Work on other branches does not rebuild the live site.</p>
+    <p>Saving on <code>main</code>, or merging a pull request into it, commits to that branch. Cloudflare then rebuilds and redeploys the site, usually within a couple of minutes. Work on other branches does not rebuild the live site.</p>
   </article>
 </Layout>
+
+<style>
+  .prose.docs { max-width: 52rem; }
+  .docs table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .95rem; }
+  .docs th, .docs td { text-align: left; vertical-align: top; padding: .5rem .75rem; border-bottom: 1px solid var(--line); }
+  .docs th { background: var(--bg-soft); }
+  .docs pre { font-size: .85rem; line-height: 1.5; }
+  .docs .toc { background: var(--bg-soft); border: 1px solid var(--line); border-radius: .5rem; padding: .75rem 1rem; margin: 1.5rem 0; }
+  .docs .toc ol { margin: .5rem 0 0; columns: 2; }
+  .docs hr { border: 0; border-top: 1px solid var(--line); margin: 3rem 0 2rem; }
+  @media (max-width: 40rem) { .docs .toc ol { columns: 1; } .docs table { display: block; overflow-x: auto; } }
+</style>
