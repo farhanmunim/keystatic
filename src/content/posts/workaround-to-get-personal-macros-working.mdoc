@@ -1,0 +1,101 @@
+---
+title: "Workaround to get “Personal Macros” working"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "If you’ve tried using PERSONAL.XLSB in Excel, you may have noticed it doesn’t always load as expected. Quick Access Toolbar buttons appear, but they don’t do anything. This can happen for various reasons – Excel might silently skip loading the workbook, or it might conflict with settings."
+date: 2026-05-15T18:13
+featured: false
+categories:
+  - "technical"
+tags:
+  - "excel"
+---
+
+The solution? Switch your macros to an **Excel Add-in (`.xlam`)**. It loads more reliably and behaves like your personal workbook, without the usual startup headaches.
+
+## One-time setup
+
+### Step 1: Create PERSONAL.XLSB (if you don’t already have one)
+
+1. Open any Excel workbook.
+2. Go to **View → Macros → Record Macro**.
+3. Set **Store macro in** to **Personal Macro Workbook**.
+4. Click OK, then immediately stop recording.
+5. Close Excel and save when prompted.
+
+### Step 2: Add your macros
+
+1. Open Excel and press **Alt+F11** to open the VBA editor.
+2. In the left panel, expand **VBAProject (PERSONAL.XLSB) → Modules → Module1**.
+3. Paste your macro code here.
+4. Press **Ctrl+S** to save.
+
+### Step 3: Save as an add-in
+
+1. In the VBA editor, select **PERSONAL.XLSB**.
+2. Go to **File → Save As**.
+3. Change the file type to **Excel Add-in (\*.xlam)**.
+4. Excel will default to the AddIns folder—leave it there.
+5. Name it `MyMacros` and click Save.
+
+### Step 4: Install the add-in
+
+1. In Excel, go to **Developer → Add-ins → Excel Add-ins**.
+2. You should see `MyMacros` listed—check the box next to it and click OK.
+3. Close and reopen Excel to make sure it loads properly.
+
+### Step 5: Add macros to the quick access toolbar (QAT)
+
+1. Right-click the QAT → **Customize Quick Access Toolbar**.
+2. Under **Choose commands from**, select **Macros**.
+3. Your macros should appear as `MyMacros.xlam!MacroName`.
+4. Select one and click **Add**.
+5. Click **Modify** to pick an icon and give it a clear name.
+6. Click OK and test your button.
+
+## Adding new macros later
+
+1. Open the add-in directly: **File → Open →** browse to `%appdata%\Microsoft\Office\AddIns\MyMacros.xlam`.
+2. Press **Alt+F11** to open the VBA editor.
+3. Expand **VBAProject (MyMacros.xlam) → Modules → Module1**.
+4. Paste your new macro alongside the existing ones.
+5. Press **Ctrl+S** to save and close.
+6. Right-click QAT → Customize → add the new macro as above.
+
+## Troubleshooting
+
+### QAT button does nothing
+
+**1. Check if the add-in is loaded**  
+Press **Alt+F11**, then **Ctrl+G** to open the Immediate Window and run:
+
+```
+For Each wb In Workbooks : ? wb.Name : Next
+```
+
+`MyMacros.xlam` should appear. If not, go to Developer → Add-ins and tick it.
+
+**2. Check the QAT entry**  
+Right-click QAT → Customize → ensure the command reads `MyMacros.xlam!MacroName` (with the `!`). Without the exclamation mark, it won’t work.
+
+**3. Check for subtle macro effects**  
+Some macros toggle hidden settings (e.g., switching reference style). Watch for small changes, like column headers switching from letters to numbers.
+
+### Add-in doesn’t stay loaded
+
+Go to **Developer → Add-ins → Excel Add-ins** and re-check the box. If it keeps disappearing, the `.xlam` file may have been moved—browse to it and re-add.
+
+### Can’t find the add-ins folder
+
+Run this in the Immediate Window:
+
+```
+? Application.UserLibraryPath
+```
+
+It will return the exact folder path.
+
+## Why use an add-in instead of PERSONAL.XLSB?
+
+`PERSONAL.XLSB` is supposed to load automatically at startup, but it doesn’t always work reliably. An `.xlam` add-in loads consistently and gives you the same convenience of personal macros, without worrying whether Excel will actually open your workbook.

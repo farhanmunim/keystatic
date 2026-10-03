@@ -1,0 +1,31 @@
+---
+title: "A New Layer of WordPress Security: Cloudflare WAF Rules v3 by Troy"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "If you’re serious about WordPress security and especially if you’re running client sites, there’s a tool I’ve recently added to my stack that deserves your attention: the Cloudflare WAF Rules v3 from Web Agency Hero."
+date: 2025-04-23T15:21
+featured: false
+categories:
+  - "technical"
+tags:
+  - "web-development"
+---
+
+I came across this resource while researching ways to tighten up my Cloudflare firewall and harden my sites against common exploits, bots, and malicious traffic. After implementing the v3 ruleset, I can confidently say: it works. Exceptionally well. It’s lightweight, logical, and it plugs a huge number of gaps in Cloudflare’s default protections, all without the bloat or hassle of a plugin.
+
+## Why I Recommend It
+
+- Optimized for WordPress – The rules are fine-tuned specifically for WordPress sites, including WooCommerce and typical plugin patterns.
+- Blocks common attack vectors – From XML-RPC abuse to bot scraping, these rules catch what many setups miss.
+- Zero performance hit – Because it’s running at the edge via Cloudflare, there’s no server overhead or impact on TTFB.
+- Easy to deploy – Just copy, paste, and tweak per your setup. It’s written clearly and tested in production.
+
+The credit for this brilliant configuration goes entirely to Troy from Web Agency Hero. His writeup is thorough, thoughtful, and updated frequently. You can find the rules and implementation guide here:  
+👉 [webagencyhero.com/cloudflare-waf-rules-v3](https://webagencyhero.com/cloudflare-waf-rules-v3/)
+
+## Add It to Your Stack
+
+This isn’t a plugin. It’s not tied to a vendor or SaaS. It’s a set of well-crafted WAF rules you can add today—manually, thoughtfully, and for free.
+
+I’ve already rolled this out across my own WordPress installations and will be adding it to all new builds. It’s become a non-negotiable part of my site security stack.

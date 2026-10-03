@@ -1,0 +1,143 @@
+---
+title: "WordPress post views count — without plugins"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Want to easily add unique (human) post view counts somewhere in your blog without using any plugins? Also want it to start at a specific number? Well look no further!"
+date: 2024-06-05T13:58
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+> **Note:** This method obfuscates IP addresses using a hashing function which creates a unique, non-reversible string for tracking purposes.
+
+I will be sharing a cookie version shortly as an alternative.
+
+## Post view counter code
+
+Copy and paste the snippet below into your `functions.php` file of your child theme (preferred).
+
+```php
+<?php
+/**
+ * Post view counter function
+ */
+
+// Debugging line to check if the file is being included
+error_log('post-view-count.php file is included');
+
+// Define the default start count, must be minimum 1
+$default_start_count = 1;
+
+function set_post_views($postID) {
+    global $default_start_count;
+
+    $count_key = 'post_views_count';
+    $count = get_post_meta($postID, $count_key, true);
+    if ($count === '' || $count === '0' || $count === 0) {
+        $count = $default_start_count;
+        update_post_meta($postID, $count_key, $count);
+    } else {
+        $count++;
+        update_post_meta($postID, $count_key, $count);
+    }
+    error_log("Updated post views for post ID: $postID, New count: $count"); // Debugging line
+}
+
+// Prevent prefetching to keep the count accurate.
+remove_action('wp_head', 'adjacent_posts_rel_link_wp_head', 10, 0);
+
+function track_post_views($post_id) {
+    if (!is_single()) {
+        return;
+    }
+
+    if (empty($post_id)) {
+        global $post;
+        $post_id = $post->ID;
+    }
+
+    $user_ip = $_SERVER['REMOTE_ADDR'];
+    $user_agent = $_SERVER['HTTP_USER_AGENT'];
+
+    // List of known bot user agents
+    $bot_agents = ['bot', 'crawl', 'slurp', 'spider', 'mediapartners', 'Googlebot', 'Bingbot', 'Yahoo! Slurp', 'DuckDuckBot', 'Baiduspider', 'YandexBot', 'Sogou'];
+
+    // Check if user agent is a bot
+    foreach ($bot_agents as $bot_agent) {
+        if (stripos($user_agent, $bot_agent) !== false) {
+            error_log('Bot detected, skipping view count update'); // Debugging line
+            return; // Exit the function if a bot is detected
+        }
+    }
+
+    // Hash the IP address and user agent for privacy
+    $unique_view_key = 'unique_viewed_' . md5($user_ip . $user_agent);
+
+    // Check if the post has already been viewed by the user
+    if (!get_post_meta($post_id, $unique_view_key, true)) {
+        set_post_views($post_id);
+
+        // Store the unique view information in the post meta
+        update_post_meta($post_id, $unique_view_key, '1');
+        error_log("Unique view recorded for post ID: $post_id, User key: $unique_view_key"); // Debugging line
+    }
+}
+add_action('wp_head', 'track_post_views', 10); // Adjusted priority
+
+function get_post_views($postID) {
+    global $default_start_count;
+
+    $count_key = 'post_views_count';
+    $count = intval(get_post_meta($postID, $count_key, true));
+    if ($count === 0) {
+        $count = $default_start_count;
+        update_post_meta($postID, $count_key, $count);
+    }
+    error_log("Retrieved post views for post ID: $postID, Count: $count"); // Debugging line
+    return $count . ' views';
+}
+?>
+```
+
+To output the count, simply drop the following snippet into a code-block element inside of your single post template or repeater/query loop:
+
+```php
+<span class="post-views"><?php echo get_post_views(get_the_ID()); ?></span>
+```
+
+> **Note:** If you are using Bricks Builder, then you need to [explicitly allow the function.](https://academy.bricksbuilder.io/article/filter-bricks-code-echo_function_names/)
+
+## Clear the post view counter
+
+Replace the snippet above with the snippet below in your `functions.php` file. Press save twice, and then you can clear this snippet and re-save.
+
+```php
+<?php
+/**
+ * Clear post view counter meta data
+ */
+
+function delete_all_post_views_meta() {
+    global $wpdb;
+
+    // Delete all post views count meta data
+    $wpdb->query(
+        "DELETE FROM $wpdb->postmeta WHERE meta_key = 'post_views_count'"
+    );
+
+    // Optional: Delete all unique view meta data
+    $wpdb->query(
+        "DELETE FROM $wpdb->postmeta WHERE meta_key LIKE 'unique_viewed_%'"
+    );
+}
+
+// Run the cleanup function
+delete_all_post_views_meta();
+?>
+```
+
+Don’t forget to delete output snippet from your single post template or repeater/query loop!

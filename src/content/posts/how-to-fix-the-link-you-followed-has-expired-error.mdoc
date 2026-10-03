@@ -1,0 +1,43 @@
+---
+title: "How to fix “the link you followed has expired” error"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Did you get a “the link you followed has expired” error after trying to upload theme in WordPress? Here’s what caused my issue and how I fixed it!"
+date: 2024-02-13T14:10
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+The error looked something like this:
+
+![](/uploads/the-link-you-followed-has-expired-error.png)
+
+## PHP version
+
+As of writing this post, I updated my PHP version to 8.3 which was not supported and caused this error. I simply went into my cPanel (or Site Tools area) via my hosting, found the option for “Select PHP Version” and dropped down the PHP version. This fixed my issue immediately.
+
+## File limits
+
+Another common reason is due to small file limits. This can be updated in a number of ways:
+
+1. Custom code snippets in a plugin or child theme
+2. via .htaccess
+3. via php.ini file
+
+Add the following inside of a custom code snippet or a child theme:
+
+```php
+@ini_set( 'upload_max_size' , '120M' );
+@ini_set( 'post_max_size', '120M');
+@ini_set( 'max_execution_time', '300' );
+```
+
+1. `@ini_set( 'upload_max_size' , '120M' );`: This line sets the maximum size of an uploaded file. In this case, it’s being set to 120 megabytes (`120M`). This affects the maximum size allowed for individual files uploaded through PHP forms, such as file upload fields in WordPress media uploader or other form submissions.
+2. `@ini_set( 'post_max_size', '120M');`: This line sets the maximum size of POST data that PHP will accept. This includes form submissions and file uploads. It’s important to note that `post_max_size` should typically be larger than `upload_max_size` to accommodate the entire form submission, including any uploaded files. In this case, it’s also set to 120 megabytes (`120M`).
+3. `@ini_set( 'max_execution_time', '300' );`: This line sets the maximum time in seconds that a script is allowed to run before it is terminated by the server. Here, it’s set to 300 seconds, or 5 minutes. This is useful for ensuring that long-running scripts, such as those performing complex operations or handling large amounts of data, have enough time to complete without being prematurely terminated.
+
+Credits to [WPBeginner](https://www.wpbeginner.com/wp-tutorials/how-to-fix-the-link-you-followed-has-expired-error-in-wordpress/) for this solution

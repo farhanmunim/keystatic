@@ -1,0 +1,68 @@
+---
+title: "Add subtle grid lines behind your website content with CSS"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Add a clean developer-style grid behind your layout using pure CSS. Learn how to use body::before with gradients for a responsive, minimal background."
+date: 2025-08-24T22:09
+featured: false
+categories:
+  - "technical"
+tags:
+  - "web-development"
+---
+
+## Example
+
+![](/uploads/screencapture-dev-farhan-app-2025-08-24-23_03_08.png)
+
+## Why this approach?
+
+No extra HTML or images, just pure CSS. It stays behind all content and scales responsively. Perfect for design systems or portfolio sites where subtle details matter.
+
+## Step 1: Create the pseudo-element
+
+We’ll use `body::before` to place the grid behind everything:
+
+```css
+body::before {
+  --grid-lines: rgba(0,0,0,0.05);
+  --gutter: 2.4rem;
+  --max-width: 1280px;
+  
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100% - var(--gutter) * 2), var(--max-width));
+  height: 100vh;
+  pointer-events: none;
+  z-index: -1;
+  
+  background-image:
+    linear-gradient(to right, var(--grid-lines) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-lines) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-lines) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-lines) 1px, transparent 1px),
+    linear-gradient(to right, var(--grid-lines) 1px, transparent 1px);
+    
+  background-position: 0 0, 25% 0, 50% 0, 75% 0, 100% 0;
+  background-size: 1px 100%;
+  background-repeat: no-repeat;
+}
+```
+
+## Step 2: How it works
+
+- `position: fixed` pins the grid to the viewport.
+- `left: 50%` and `transform: translateX(-50%)` centre the grid.
+- `background-image` uses multiple linear gradients as vertical lines.
+- `background-position` spreads them evenly across your container.
+- CSS variables let you tweak colours, gutters, and max width easily.
+
+## Step 3: Customise it
+
+- Change `--grid-lines` colour or opacity for lighter or bolder lines.
+- Adjust `--gutter` or `--max-width` to fit your layout width.
+- Add more gradient layers if you need more columns.

@@ -1,0 +1,65 @@
+---
+title: "Output most recent field entry by logged-in user for Bricks saved submission"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Need to return the most recent field entry of a form submission for a specific field and for the current logged-in user? Here’s the code!"
+date: 2024-05-17T09:18
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+```php
+<?php
+// Ensure the namespace and class are loaded
+use Bricks\Integrations\Form\Submission_Database;
+
+function get_latest_user_form_submission($form_id, $field_id) {
+    // Check if the user is logged in
+    if (!is_user_logged_in()) {
+        return 'User is not logged in.';
+    }
+
+    // Get the current logged-in user ID
+    $user_id = get_current_user_id();
+
+    global $wpdb;
+
+    // Table name
+    $table_name = $wpdb->prefix . 'bricks_form_submissions';
+
+    // Prepare and execute the SQL query to get the latest submission for the specified form ID and user ID
+    $sql = $wpdb->prepare(
+        "SELECT form_data FROM {$table_name} WHERE form_id = %s AND user_id = %d ORDER BY created_at DESC LIMIT 1",
+        $form_id, $user_id
+    );
+
+    // Get the result
+    $result = $wpdb->get_var($sql);
+
+    if ($result) {
+        // Decode the JSON form data
+        $form_data = json_decode($result, true);
+
+        // Check if the specified field exists and return its value
+        if (isset($form_data[$field_id])) {
+            return $form_data[$field_id]['value'];
+        } else {
+            return 'Field not found';
+        }
+    } else {
+        return 'No submissions found for this user and form.';
+    }
+}
+
+// Example usage
+$form_id = 'mcsnjs'; // Replace with your form ID
+$field_id = '501fb8'; // Replace with your field ID
+$field_value = get_latest_user_form_submission($form_id, $field_id);
+
+echo 'The most recent value for field ' . $field_id . ' is: ' . $field_value;
+?>
+```

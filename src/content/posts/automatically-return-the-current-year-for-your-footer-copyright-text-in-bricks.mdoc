@@ -1,0 +1,29 @@
+---
+title: "Automatically return the current year for your footer copyright text in Bricks"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Have you ever come across a website where the year in the copyright disclaimer has elapsed? Well that won’t happen to you!"
+date: 2023-12-08T13:53
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+To automatically return the current year in the format YYYY for your copyright text in Bricks, you can do the following:
+
+- Create a Footer template (wp-admin \> Bricks \> Templates) and ensure the condition is set to apply to the entire website (template builder \> Settings \> Template settings \> Conditions \> Entire website)
+- Dropped in a code element in the panel and paste in the below snippet (update as per your requirement!) and then execute the code
+
+This will output a clean p tag with your desired text followed by the current year.
+
+```php
+<p>
+    <?php
+    $current_year = date('Y');
+    echo '© Farhan Munim ' . $current_year;
+    ?>
+</p>
+```

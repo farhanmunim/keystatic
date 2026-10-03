@@ -1,0 +1,53 @@
+---
+title: "Solved: LocalWP stuck on Downloading WordPress loop"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Many users like myself have ran into the never-ending “Downloading WordPress” screen in LocalWP. As of Version 8.2.1+6583, there is still no official fix for this but I after testing everything listed in the Community page and what I could think of, I found something that works!"
+date: 2024-02-17T12:26
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+Below is a screenshot of the screen it was stuck on for me but your error may be a looped loading “WordPress version” animation:
+
+![](/uploads/localwp-download-wordpress-loop.png)
+
+## I have tried everything!
+
+- Re-installing after deleting previous installation files
+- Factory wipe my laptop and installing local again
+- Installing an older version \< `8.0`
+- Adding a new site whilst the current one downloads WordPress (used to work in the past on my old laptop – not working anymore)
+- Checking host file so it is not `read-only`
+- Changing server type and php versions
+- Changing router setting to `local host`
+- Disabled all firewalls
+
+## This worked for me and will most likely work for you!
+
+1. Create a new site (this will be stuck on the “Downloading WordPress…” loop) – let’s call this Site X
+2. Now close the LocalWP application (if you get an alert to say a site is currently running, ignore this and proceed)
+3. Now open the Local WP application
+4. Now select Site X and click `Start Site`
+5. Click Database in the sub-navigation
+6. Click `Open Adminer` and you should see a breadcrumb navigation structure on the top of the screen that looks something like this: `MySQL >> Local Site: Site X >> Database: local`
+7. Most likely there will be no tables within this – but if there are tables then select all of the tables and click `Drop`
+8. Click `Local Site: Site X` in the top breadcrumb navigation structure
+9. Now click `Privileges` – most likely there will be no users but if there might be 1 user called Root
+10. Click `Create user`, leave the server name as localhost, set a new username, set a new password – make this very very very hard, click `All privileges` and then click `Save` – you can now exit AdminerEvo. If you get any errors, see step 11 or skip to step 12.
+11. In MySQL/MariaDB, when granting privileges, you need to specify the database or table on which you are granting privileges. Using `.*` is not valid syntax for granting privileges (which sometimes happens when you click `All privileges` by default). Simply edit the SQL query and replace `.*` with `'local'.*` and then click `Save` – you can now exit AdminerEvo.
+12. Go back to LocalWP, right click on your site, and select `Go to site folder`
+13. Go to your `app\public` filepath – most likely it is empty, if not, delete all of the files
+14. Open your broswer of choice, search for the download WordPress website, and download WordPress – [the UK version of the WordPress download is here](https://en-gb.wordpress.org/download/)
+15. Now unzip the content of this folder inside of the `app\public` filepath you went to in step 13 – there might be another folder called WordPress when you unzip the WordPress folder, you want the contents of the WordPress folder directly inside of the `app\public` filepath – you can now close the explorer
+16. Back to LocalWP, now click `Open site` for Site X and you should see the WordPress installation wizard – simply follow the steps – make sure you enter the following details correctly:
+    - Database name: `local`
+    - Username: the username you set in AdminerEvo
+    - Password: the password you set you set in AdminerEvo
+17. Bonus step: create a “Blueprint” of this installation in LocalWP so you can always start a new install by cloning the blueprint
+
+If you completed the above steps correctly, you should be directed to the wp-admin page – congratulations! Not only can you start using LocalWP for this particular site installation but you should now be able to create a new site in LocalWP normally and you shouldn’t get anymore errors!

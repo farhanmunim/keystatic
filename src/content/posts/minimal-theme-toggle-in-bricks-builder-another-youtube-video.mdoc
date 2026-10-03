@@ -1,0 +1,128 @@
+---
+title: "Minimal theme toggle in Bricks Builder (another YouTube video)"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Since posting the last video on YouTube, I have received over 50 messages about creating a video for a minimal theme toggle for the site. Well here’s the video!"
+date: 2024-10-12T23:54
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+![](/uploads/lmjnhbg.png)
+
+👉 Live rebuild : [https://dusk.farhan.app/](https://dusk.farhan.app/)
+
+Original site: [https://dusk-template.framer.website/](https://dusk-template.framer.website/)  
+Mat’s site: [https://matnie.com/](https://www.matnie.com/)
+
+Here is the JS code:
+
+```js
+// check and set initial theme
+
+function checkAndSetInitialTheme(){
+    const themePreference = localStorage.getItem("themePreference");
+
+    if (!themePreference){
+        setSystemTheme();
+    } else if (themePreference === "light"){
+        setLightTheme();
+    } else if (themePreference === "dark"){
+        setDarkTheme();
+    } else if (themePreference === "system"){
+        setSystemTheme();
+    }
+}
+
+// listen to toggle
+
+function setupThemeToggleListener(){
+    const themeToggles = document.querySelectorAll('.toggle__input[name="theme"]');
+
+    themeToggles.forEach((toggle) =>{
+        toggle.addEventListener("change", function(){
+            if (this.value === "light"){
+                setLightTheme();
+            } else if (this.value === "dark"){
+                setDarkTheme();
+            } else if (this.value === "system"){
+                setSystemTheme();
+            }
+        });
+    });
+}
+
+// listen to system preference
+
+function setupSystemThemeChangeListener(){
+    const mediaQueryList = window.matchMedia("(prefers-color-scheme: dark)");
+    mediaQueryList.addEventListener("change", updateSystemTheme);
+    updateSystemTheme();
+}
+
+// basic functions
+
+function setSystemTheme(){
+    const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+    if (prefersDarkScheme){
+        resetThemeToggles();
+
+        document.querySelector('.toggle__input[name="theme"][value="system"]').checked = true;
+        document.documentElement.setAttribute("data-theme", "dark");
+        localStorage.setItem("themePreference", "system");
+    } else{
+        resetThemeToggles();
+
+        document.querySelector('.toggle__input[name="theme"][value="system"]').checked = true;
+        document.documentElement.setAttribute("data-theme", "light");
+        localStorage.setItem("themePreference", "system");
+    }
+}
+
+function setLightTheme(){
+    resetThemeToggles();
+
+    document.querySelector('.toggle__input[name="theme"][value="light"]').checked = true;
+    document.documentElement.setAttribute("data-theme","light");
+    localStorage.setItem("themePreference","light");
+}
+
+function setDarkTheme(){
+    resetThemeToggles();
+
+    document.querySelector('.toggle__input[name="theme"][value="dark"]').checked = true;
+    document.documentElement.setAttribute("data-theme", "dark");
+    localStorage.setItem("themePreference", "dark");
+}
+
+function updateSystemTheme(){
+    const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const storedPreference = localStorage.getItem("themePreference");
+    const currentTheme = document.documentElement.getAttribute("data-theme");
+
+    if (storedPreference === "system"){
+        if ((prefersDarkScheme && currentTheme !=="dark") || (!prefersDarkScheme && currentTheme !=="light")){
+            setSystemTheme();
+        }
+    }
+}
+
+function resetThemeToggles(){
+document.querySelectorAll('.toggle__input[name="theme"]').forEach((toggle) =>{
+    toggle.checked = false;
+});
+}
+
+// on page load
+
+window.addEventListener("DOMContentLoaded",()=>{
+    checkAndSetInitialTheme();
+    setupThemeToggleListener();
+    setupSystemThemeChangeListener();
+});
+```

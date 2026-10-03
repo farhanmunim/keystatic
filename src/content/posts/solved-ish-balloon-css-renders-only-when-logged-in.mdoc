@@ -1,0 +1,25 @@
+---
+title: "Solved-ish: Balloon.css renders only when logged in"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Notice Balloon.css tooltips only render when logged into WordPress, but not anytime else? Here’s a workaround!"
+date: 2024-02-13T13:37
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+If you are still using Brick Builder’s Balloon.css implementation, just know that this is a known bug as of v1.9.6 and below. A workaround is to enqueue Balloon.css (tooltips.min.css) file using a custom snippets plugin or inside of your child theme.
+
+Here is an example of enqueueing tooltips-min-css inside of my child theme BEFORE the child theme’s styles and scripts.
+
+```php
+// Enqueue tooltips.min.css from Bricks Builder
+wp_enqueue_style( 'tooltips-min-css', get_template_directory_uri() . '/assets/css/libs/tooltips.min.css', array(), '1.0' );
+
+// Enqueue your child theme stylesheet
+wp_enqueue_style( 'child-theme', get_stylesheet_uri(), ['bricks-frontend'], filemtime( get_stylesheet_directory() . '/style.css' ) );
+```

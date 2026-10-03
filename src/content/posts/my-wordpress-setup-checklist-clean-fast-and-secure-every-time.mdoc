@@ -1,0 +1,299 @@
+---
+title: "My WordPress setup checklist (clean, fast, and secure every time)"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "A fresh WordPress install works – but it’s not clean, not optimised, and definitely not secure."
+date: 2026-03-20T23:01
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+Most issues people run into later come from:
+
+- weak defaults
+- too many plugins
+- skipping the basics
+
+So instead of fixing things later, I just follow the same checklist every time.
+
+Nothing fancy. Just a solid baseline that keeps things fast, secure, and easy to maintain.
+
+## 🧱 1. Before you even install WordPress
+
+This part matters more than people think.
+
+### Hosting & stack
+
+- Use **LiteSpeed or Nginx** (I avoid Apache where possible)
+- PHP: **8.2+**
+- Enable:
+  - OPcache
+  - Brotli or Gzip
+  - HTTP/2 or HTTP/3
+
+### Database
+
+- Use **MariaDB** over MySQL
+
+### Domain & SSL
+
+- Set up SSL (Let’s Encrypt is fine)
+- Force HTTPS at **server level** (not via plugin)
+
+## ⚙️ 2. Clean install (start tidy)
+
+After installing WordPress:
+
+Delete:
+
+- default post, page, comments
+- unused themes (keep one fallback)
+- all unused plugins
+
+Start clean – it makes everything easier later.
+
+## 🔧 3. Core settings (don’t skip these)
+
+### General
+
+- Set a proper site title
+- Keep tagline intentional (or remove it)
+- Set timezone to **London**
+- Disable membership unless needed
+
+### Permalinks
+
+Set:
+
+```
+/%postname%/
+```
+
+### Reading
+
+- Make sure **“Discourage search engines” is OFF** (unless staging)
+
+### Media
+
+- Set all image sizes to 0 (reduces bloat)
+
+### Discussion
+
+Disable:
+
+- comments (if not needed)
+- pingbacks & trackbacks
+
+## 📁 4. Clean media structure
+
+### Disable upload folders
+
+Turn off:
+
+> “Organise uploads into month/year folders”
+
+So instead of:
+
+```
+/uploads/2026/03/image.webp
+```
+
+You get:
+
+```
+/uploads/image.webp
+```
+
+Much cleaner long-term.
+
+### Naming (simple SEO win)
+
+Use:
+
+```
+service-name-location.webp
+```
+
+## ⚡ 5. Performance baseline (no overkill)
+
+### Caching
+
+Pick one:
+
+- server-level cache (best)
+- OR a lightweight plugin
+
+### Remove what you don’t need
+
+- emoji scripts
+- unused block CSS
+- unused scripts/styles
+
+### Disable:
+
+- XML-RPC
+- oEmbed
+- Heartbeat API (limit or disable)
+
+### Database
+
+- limit post revisions (3–5 max)
+- set up auto-cleanup (or cron)
+
+## 🧼 6. Code clean-up (big impact, often ignored)
+
+- Remove jQuery (if not needed)
+- Load scripts with `defer` or `async`
+- Inline critical CSS
+- Avoid page builders where possible
+
+This is where sites go from “okay” to actually fast.
+
+## 🔐 7. Security (non-negotiable)
+
+### Basic hardening
+
+- Change login URL
+- Limit login attempts
+- Force strong passwords
+
+### Lock down files
+
+Disable file editing:
+
+```
+define('DISALLOW_FILE_EDIT', true);
+```
+
+Also:
+
+- protect `wp-config.php`
+- block PHP execution in `/uploads`
+
+### Authentication
+
+- Enable 2FA
+- Add login alerts (email is fine)
+
+### Firewall
+
+- Add **8G firewall rules**
+- Use a **WAF** (Cloudflare or server-level)
+
+## 🧠 8. SEO basics (keep it simple)
+
+- Set clean page titles
+- Add meta descriptions
+- Create XML sitemap
+
+### Robots.txt
+
+- block junk
+- allow important pages
+
+### Structure
+
+- keep URLs clean
+- use internal linking early
+
+## 📊 9. Analytics (don’t overcomplicate)
+
+- Add analytics (Google or privacy-first alternative)
+- If possible, use server-side tracking
+
+## 🧩 10. Plugin philosophy (this is where most sites fail)
+
+Only install plugins that:
+
+- solve a real problem
+- are maintained
+- do one job well
+
+Avoid:
+
+- “all-in-one” plugins
+- heavy page builders
+
+Less plugins = less problems.
+
+## 🗂️ 11. Backups (seriously, don’t skip this)
+
+- daily automated backups
+- stored off-site (not on the same server)
+- test restore once
+
+You don’t want to figure this out under pressure.
+
+## 🚀 12. Deployment basics
+
+### Staging
+
+- build on staging first
+- block indexing
+
+### Migration
+
+- run search & replace for URLs
+- clear all caches after launch
+
+## 🧪 13. Post-launch checks
+
+Test:
+
+- forms
+- emails (SMTP set up properly)
+- mobile responsiveness
+
+Run:
+
+- Lighthouse / PageSpeed
+
+Check:
+
+- 404s
+- redirects
+
+## 🔁 14. Ongoing maintenance
+
+### Weekly
+
+- update plugins + core
+- check backups
+
+### Monthly
+
+- clean database
+- review performance
+
+### Quarterly
+
+- remove unused plugins
+- tidy things up
+
+## 🧠 Bonus (small things that make a big difference)
+
+- Disable REST API for non-logged users (if not needed)
+- Preload fonts properly
+- Self-host fonts (no external calls)
+- Use WebP/AVIF images only
+- Limit admin users
+- Change database prefix (`wp_` → custom)
+- Disable WP cron → use real server cron
+
+## Final thoughts
+
+None of this is complicated.
+
+It’s just a **repeatable baseline** that avoids:
+
+- slow sites
+- security issues
+- plugin bloat
+
+If you set things up properly from the start, you don’t spend time fixing avoidable problems later.
+
+And honestly – that’s the biggest win.

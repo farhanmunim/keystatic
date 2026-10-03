@@ -1,0 +1,39 @@
+---
+title: "How to manage and pass env values into WordPress through Coolify"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "You want to store sensitive keys (like Turnstile site + secret keys) in environment variables, then expose them inside WordPress as constants — without hardcoding anything in your repo."
+date: 2026-04-27T17:56
+featured: false
+categories:
+  - "technical"
+tags:
+  - "coolify"
+  - "wordpress"
+---
+
+## Steps
+
+1. Go to your **project**
+2. Open your **environment** (e.g. `production`)
+3. Click your **WordPress service**
+4. On the left sidebar → click **Environment Variables**
+5. Switch to **Developer view** (important)
+6. Add your keys and then the `WORDPRESS_CONFIG_EXTRA` so it should look like this:
+
+```
+KEY_1=XXX
+KEY_2=XXX
+WORDPRESS_CONFIG_EXTRA=define('KEY_1', getenv('KEY_1')); define('KEY_2', getenv('KEY_2'));
+```
+
+Then save the environement variables and deploy (or restart).
+
+## Notes (so you don’t get caught again)
+
+- Use **Developer view**, not Normal view
+- Keep everything **single-line** (i.e. don’t select Is Multiline?)
+- Don’t select Is Literal?
+- Don’t wrap anything in quotes
+- `WORDPRESS_CONFIG_EXTRA` injects directly into `wp-config.php`

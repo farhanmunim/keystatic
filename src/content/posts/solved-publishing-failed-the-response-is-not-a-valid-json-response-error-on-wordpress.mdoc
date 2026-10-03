@@ -1,0 +1,23 @@
+---
+title: "Solved: “Publishing failed. The response is not a valid JSON response” error on WordPress"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Have you recently installed WordPress and tried to create a new page only to be greeted by “Publishing failed. The response is not a valid JSON response”? Here’s how to fix it!"
+date: 2024-03-07T18:01
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+![](/uploads/Not-a-valid-JSON-response-error.png)
+
+1. Either go to your web files via FTP or the file manager of your hosting’s Site Tools/cPanel
+2. Go to the root of your WordPress installation, somewhere like `server/public_html/`
+3. Now locate the `.htaccess` file (this may be hidden if you are looking at it from your browser, you need to toggle your visibility settings) and simply delete the file (I promise it’s okay!)
+4. Now go to `WordPress site/wp-admin > Settings > Permalinks > *select your desired setting if required* > Save Changes` – do this twice
+5. A new `.htaccess` will automatically be created – you can go back to your WordPress files and check
+
+You should now be able to create pages with no issues!

@@ -1,0 +1,1805 @@
+---
+title: "Hetzner Cloud — Complete Hosting Guide"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "From zero to multiple live websites on Hetzner Cloud, with Cloudflare DNS, WordPress, CloudPanel, and Coolify. Written for someone who has never touched a server before."
+date: 2026-10-03T16:52
+featured: false
+categories:
+  - "guides"
+  - "technical"
+tags:
+  - "coolify"
+  - "vps"
+---
+
+> **Tip:** This guide covers **three paths**: a manual LEMP stack (NGINX + PHP + MySQL) for full control, **CloudPanel** for a classic GUI hosting panel, and **Coolify** for a self-hosted Heroku/Vercel-style deploy platform. All three use Cloudflare for DNS. Read Part 1 (server setup) first — it applies to every path.
+
+- *(Required)* You must do this — skipping will break things
+- *(Recommended)* Strongly advised for security / usability
+- *(Optional)* Nice to have — skip to keep things simple
+
+## 00 Overview & What You’ll Build
+
+*Part: Getting Started*
+
+- A Hetzner Cloud server running Ubuntu, fully secured
+- SSH key authentication (no passwords)
+- A firewall blocking everything except web traffic and SSH
+- Cloudflare managing DNS with CDN/DDoS protection
+- One or more WordPress websites
+- Ability to add non-WordPress (static HTML, Node.js, PHP) sites
+- Multiple domains and subdomains on one server
+- Free SSL certificates
+- Automated backups
+
+### The Architecture
+
+Your Visitors → Cloudflare (CDN/DNS) → Hetzner Server → NGINX / CloudPanel → Your Websites
+
+## 01 Prerequisites
+
+*Part: Getting Started*
+
+| What | Why | Cost |
+| --- | --- | --- |
+| Hetzner account | Your server lives here | From \~€4.50/mo |
+| Cloudflare account | DNS, CDN, DDoS protection | Free plan works |
+| A domain name | Already on Cloudflare | Varies |
+| A way to type commands | Only for initial setup — see below | Free |
+
+## 02 Choose Your Path
+
+*Part: Getting Started*
+
+### 🔧 Path A — Manual LEMP Stack
+
+Install NGINX, PHP, MySQL yourself. Full control, more terminal usage throughout.
+
+### 🖥️ Path B — CloudPanel (GUI)
+
+Free control panel built for traditional hosting (WordPress, PHP apps, static sites). One-time terminal install, then everything else is browser-based. **Best if you mainly want to host WordPress or PHP sites.**
+
+### 🚀 Path C — Coolify (Self-Hosted PaaS)
+
+Open-source, self-hosted alternative to Heroku / Vercel / Netlify. Deploys apps from a Git repo (Node, Python, PHP, static sites), databases, and Docker containers — all from a browser UI. **Best if you want to deploy modern web apps or one-click tools like Ghost, n8n, Plausible, etc.**
+
+> **Warning:** **Choose ONE path per server.** Don’t mix a manual LEMP stack, CloudPanel, and Coolify on the same server — they fight over ports 80/443 and will conflict. If you want to try multiple, spin up a fresh, cheap Hetzner server for each.
+
+## 03 How You’ll Type Commands *(Required — Read This)*
+
+*Part: Getting Started*
+
+You’ll need to type a handful of commands during initial setup. Pick whichever option you’re most comfortable with.
+
+💬 **What’s a “terminal”?** A plain text window where you type commands and the computer types back. No mouse, no icons — the whole interaction is lines of text. Don’t worry: this guide tells you exactly what to type.
+
+🔐 **What’s SSH?** SSH (“Secure Shell”) is how your computer talks to your server over the internet, through an encrypted tunnel. You open a terminal on your machine, SSH in, and it feels like you’re typing directly on the server.
+
+### Option A: Hetzner Web Console (100% browser — no setup needed)
+
+After creating your server, click the **terminal icon** (`>_`) on your server’s dashboard page. A terminal opens in a new browser tab.
+
+**Pros:** No software to install. Works on any computer, even a Chromebook.  
+**Cons:** Copy/paste can be clunky (use Ctrl+Shift+V). Slight input lag. Can time out if idle.
+
+**How:** Hetzner Cloud Console → click your server → terminal icon (top-right) → new tab opens.
+
+### Option B: Your computer’s built-in terminal
+
+**Mac:** Terminal app (search Spotlight). **Windows 10/11:** Windows Terminal or PowerShell. **Linux:** Your terminal of choice.
+
+**Pros:** Faster, better copy/paste. **Cons:** Requires SSH keys (section 1.2).
+
+### Option C: PuTTY (Windows graphical SSH client)
+
+Download [PuTTY](https://www.putty.org/). Enter your server IP, click Open, terminal appears.
+
+> **Tip:** **New to terminals? Use the Hetzner Web Console (Option A).** Zero setup — click a button in your browser. Throughout this guide, 🖥️ Web Console notes flag anything different for browser-console users.
+
+## 04 Terminal Survival Guide *(Recommended — Read This)*
+
+*Part: Getting Started*
+
+A few things that will save you a lot of confusion:
+
+🔑 **`sudo`** — means “run this command as admin”. Most commands in this guide use `sudo` because they change system settings. **root** is the built-in superuser (always admin, no `sudo` needed). A **sudo user** (like `deploy`) is a normal user who’s allowed to temporarily borrow admin powers by typing `sudo`. Using a sudo user day-to-day is safer than logging in as root.
+
+⌨️ **Ctrl+C** — cancels/stops whatever command is currently running. If something hangs or you made a mistake, press **Ctrl+C** to abort and get back to a clean prompt.
+
+📝 **nano** (the text editor) — when this guide says “edit a file”, we use nano. Quick reference: **Ctrl+W** = search, **Ctrl+X** = exit, then **Y** to save, **Enter** to confirm filename. Arrow keys to move around.
+
+👁️ **Passwords are invisible** — when typing a password in the terminal, nothing appears on screen. No dots, no asterisks, nothing. This is normal. Just type it and press Enter.
+
+📋 **Pasting** — in most terminals: **Ctrl+Shift+V** (Linux/Windows) or **Cmd+V** (Mac). In Hetzner Web Console, try right-click → Paste if shortcuts don’t work.
+
+🚨 **If a command fails** — don’t keep retrying randomly. **Read the error message.** It usually tells you exactly what’s wrong. Common causes: typo in the command, missing `sudo`, or a service that hasn’t started yet.
+
+---
+
+## 05 Hetzner Projects *(Recommended — Read First)*
+
+*Part: Hetzner Concepts*
+
+In Hetzner Cloud, everything (servers, firewalls, SSH keys, volumes, networks, backups, API tokens) lives inside a **Project**. A project is a container that groups related resources and isolates billing and access. You can have many projects under a single Hetzner account.
+
+**Good defaults:** one project per client, one per major app, or one “personal” project for everything you own. Don’t mix production and throwaway experiments in the same project — firewalls and SSH keys only exist within a project, so splitting keeps accidents contained.
+
+**How:** Hetzner Cloud Console → top-left project dropdown → **New Project** → name it → enter it before creating your first server.
+
+## 06 Locations & Datacenters
+
+*Part: Hetzner Concepts*
+
+Hetzner runs datacenters in several regions. Pick the one closest to your main audience — latency matters far more than marginal price differences. Location cannot be changed after creation; you’d have to migrate via snapshot.
+
+| Location | Code | Region | Good for |
+| --- | --- | --- | --- |
+| Falkenstein, DE | `fsn1` | Europe | EU audiences, cheapest historically |
+| Nuremberg, DE | `nbg1` | Europe | EU audiences |
+| Helsinki, FI | `hel1` | Europe (North) | Nordics / Baltics / Russia-adjacent |
+| Ashburn, VA, US | `ash` | US East | US / Canada East, Latin America |
+| Hillsboro, OR, US | `hil` | US West | US West, West Canada |
+| Singapore | `sin` | Asia-Pacific | SEA, South Asia, Australia |
+
+> **Tip:** Not sure? With Cloudflare in front (which this guide uses), your static and cached content is served from Cloudflare’s global edge regardless — so the origin location mainly impacts dynamic requests (WordPress admin, logged-in users, API calls).
+
+## 07 Server Types — CX vs CAX vs CPX vs CCX
+
+*Part: Hetzner Concepts*
+
+Hetzner offers two tiers: **Shared vCPU** (cheaper, fine for most websites) and **Dedicated vCPU** (guaranteed cores, for CPU-heavy workloads). Within each tier there are different CPU architectures.
+
+| Line | Tier | CPU | Notes | Use when |
+| --- | --- | --- | --- | --- |
+| **CX** | Shared | Intel x86 | Classic all-rounder | Default choice for WordPress / PHP / Node |
+| **CPX** | Shared | AMD x86 | Faster per-core than CX, small premium | Better perf on the same budget |
+| **CAX** | Shared | Ampere ARM64 | Cheapest, excellent perf/€ | Only if your stack runs on ARM (most do — Ubuntu, NGINX, PHP, MariaDB, Node all fine) |
+| **CCX** | Dedicated | AMD EPYC | Guaranteed vCPUs, 2–4× price | Sustained CPU load, game/app servers, CI |
+
+> **Warning:** **ARM caveat (CAX):** some legacy plugins or proprietary binaries may lack ARM builds. Safe for vanilla WordPress; verify if you use niche tools. When in doubt, use CPX.
+
+**You can rescale freely** between sizes within a line (e.g. CX22 → CX32), and also between shared lines that share architecture. Changing architecture (x86 ↔ ARM) requires a fresh install or snapshot-based migration.
+
+## 08 Images — What “Image” Means
+
+*Part: Hetzner Concepts*
+
+The “Image” is what gets installed on your new server. Hetzner offers four kinds:
+
+**OS images** — plain Ubuntu, Debian, Fedora, Rocky, Alma, CentOS Stream, openSUSE. **Use Ubuntu 24.04 LTS** for this guide.
+
+**Apps** — prebuilt OS + software bundles (Docker, WordPress, LAMP, cPanel, Plesk, GitLab, etc.). Handy but less transparent; this guide prefers installing manually on Ubuntu.
+
+**Snapshots** — point-in-time images *you* create manually. Kept forever until you delete them. Good for cloning a server or migrating between locations / architectures.
+
+**Backups** — daily snapshots Hetzner takes *automatically*. Rolling window (only the last 7 are kept). Enable on the server’s Backups tab, \~20% of server price. The beginner-friendly “set and forget” option.
+
+## 09 IPv4 vs IPv6 *(Recommended — Read This)*
+
+*Part: Hetzner Concepts*
+
+Every server gets network addresses. You’ll see both “IPv4” and “IPv6” checkboxes during server creation. Here’s what they actually mean:
+
+### What they are
+
+**IPv4** — the old, short format (e.g. `203.0.113.10`). Four numbers 0–255. The internet is running out of them, so Hetzner charges a small fee for each one (\~€0.60/month). Every website visitor, every OS, every DNS provider understands IPv4. It is the **lowest common denominator**.
+
+**IPv6** — the new, long format (e.g. `2001:db8:c17:1a2b::1`). Effectively unlimited supply, so Hetzner gives you a **/64 block** (18 quintillion addresses) for free. Supported by all modern networks, but not every ISP or corporate network has it turned on.
+
+### Which should I enable?
+
+| Setup | Works for visitors? | Cost | Recommended? |
+| --- | --- | --- | --- |
+| IPv4 only | ✅ Everyone | \~€0.60/mo | OK — simple |
+| IPv4 + IPv6 (dual-stack) | ✅ Everyone (IPv6 users get IPv6, others get IPv4) | \~€0.60/mo | ✅ **Best — default** |
+| IPv6 only | ⚠️ Only IPv6-capable visitors (\~40% globally). Most home/office networks still can’t reach you. | Free | ❌ Don’t — you’ll lose traffic |
+
+> **Tip:** **Default for this guide: enable both.** Leave the defaults in the Hetzner UI. You pay the same tiny IPv4 fee either way, and dual-stack means the widest reach.
+
+### What this means in DNS
+
+**A record** → points a domain to an IPv4 address. Example: `example.com A 203.0.113.10`.
+
+**AAAA record** (“quad-A”) → points a domain to an IPv6 address. Example: `example.com AAAA 2001:db8:c17:1a2b::1`.
+
+If you set up DNS **through Cloudflare with the orange cloud (Proxied)** — which this guide recommends — you only need the A record. Cloudflare talks to your server over whichever protocol is available; visitors talk to Cloudflare. So **IPv6 on the origin is “nice to have” but not required** for your site to be reachable over IPv6 globally.
+
+If you go **DNS-only (grey cloud)** and want full IPv6 support for visitors, add an AAAA record too, pointing at the `::1` address from your Hetzner server’s /64 range (Server → Networking → copy the IPv6).
+
+### Connecting via SSH
+
+```
+# Over IPv4
+ssh deploy@203.0.113.10
+
+# Over IPv6 (brackets not needed for ssh, but needed in URLs)
+ssh deploy@2001:db8:c17:1a2b::1
+```
+
+Your home ISP must support IPv6 for the second one to work. If it hangs, your network probably can’t route IPv6 — just use IPv4.
+
+> **Warning:** **Firewalls apply to both.** UFW and Hetzner Cloud Firewalls filter IPv4 and IPv6 separately. The commands in this guide (`ufw allow 80/tcp`) apply to both by default, but if you write custom rules with explicit IPs, remember to cover v6 too.
+
+## 10 Private Networks *(Optional)*
+
+*Part: Hetzner Concepts*
+
+A Private Network lets multiple servers in the same location talk to each other over a private subnet that is **not exposed to the public internet**. You’d use this when you eventually split your stack — e.g. one server for the web app, another for the database.
+
+**When you need it:** multi-server setups, database server separate from web server, internal-only services (Redis, private APIs).
+
+**When you don’t:** single-server WordPress setup (this guide’s default). Skip for now.
+
+**How:** Hetzner Console → project → **Networks** → **Create Network** → pick a range (e.g. `10.0.0.0/16`) → attach servers to it. Free of charge.
+
+## 11 Volumes (Block Storage) *(Optional)*
+
+*Part: Hetzner Concepts*
+
+Volumes are **extra disks** you can attach to a server. Your server’s built-in disk is fine for most websites (CX22 = 40 GB, plenty for dozens of WordPress sites). Volumes matter when you outgrow that.
+
+**Key traits:** 10 GB – 10 TB per volume. Independent of the server — you can detach from one server and attach to another. \~€0.044 per GB/month (EU). Only available in the same location as the server.
+
+**When you’d use one:** large media libraries, big databases, shared storage you want to keep even if you rebuild the server.
+
+Create in the browser (Volumes → Create Volume), attach to a server, then mount inside the OS (Hetzner shows the exact commands). You don’t need this on day one — add it later if you hit a disk wall.
+
+## 12 Placement Groups *(Optional)*
+
+*Part: Hetzner Concepts*
+
+A Placement Group tells Hetzner: “spread these servers across different physical hosts so they don’t all go down together.” Only useful if you run **multiple servers** that back each other up (e.g. two web servers behind a load balancer).
+
+For a single-server setup, ignore this entirely. For HA setups: create a *spread* placement group, then assign each server to it at creation time.
+
+## 13 Cloud-init / User Data *(Optional — Power User)*
+
+*Part: Hetzner Concepts*
+
+During server creation, there’s a **“Cloud config”** / User Data field. This lets you paste a script that runs automatically on first boot — so your server comes up already updated, with users created and software installed, without touching the terminal manually.
+
+Example — this auto-updates and installs basics:
+
+```
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - ufw
+  - fail2ban
+  - htop
+  - unattended-upgrades
+runcmd:
+  - ufw allow OpenSSH
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - systemctl enable --now fail2ban
+```
+
+> **Tip:** Great for spinning up identical servers repeatably. Skip on your first server — learn the manual steps first so you understand what cloud-init is automating.
+
+## 14 Labels *(Optional)*
+
+*Part: Hetzner Concepts*
+
+Labels are key-value tags (`env=prod`, `client=acme`) you can attach to servers, volumes, networks, etc. Useful once you have many resources — filter the Console by label, or target groups of servers via the API. Ignore if you have 1–2 servers.
+
+---
+
+## 1.1 Create Your Hetzner Account *(Required)*
+
+*Part 1 — Server Setup*
+
+Entirely in your browser.
+
+1. Go to [console.hetzner.cloud](https://console.hetzner.cloud/) → **Sign Up**.
+2. Enter email, password, verify email.
+3. Hetzner may request ID verification (passport/licence). Normal — takes a few hours to a day.
+4. Add a payment method under **Billing**.
+5. *(Recommended)* Enable **Two-Factor Authentication** in account settings.
+
+> **Note:** Hetzner often offers **€20 free credit** for new accounts.
+
+## 1.2 Generate SSH Keys *(Recommended)*
+
+*Part 1 — Server Setup*
+
+SSH keys let your computer prove its identity cryptographically instead of using a password.
+
+> **Tip:** **Can I skip this?** If you’ll only use the Hetzner Web Console, you can skip SSH keys. Hetzner will email you a root password instead. However, SSH keys are much more secure — password login is a common attack vector.
+
+### What are SSH keys?
+
+🔑 **Private key** — stays on YOUR computer only. Never share this.
+
+🔓 **Public key** — goes on the server. Anyone can see it, but only your private key unlocks it.
+
+### Generate the key pair
+
+On your **local computer** (not the server), open your terminal:
+
+```
+ssh-keygen -t ed25519 -C "your-email@example.com"
+```
+
+Press Enter for default location, then set a passphrase (or Enter for none).
+
+View the public key:
+
+```
+cat ~/.ssh/id_ed25519.pub
+```
+
+Copy the entire output line.
+
+### Add to Hetzner (browser)
+
+Hetzner Cloud Console → your project → **Security** → **SSH Keys** → **Add SSH Key** → paste your public key.
+
+> **Web Console users (skipping SSH keys)**
+
+> Don’t select any SSH key when creating your server. Hetzner will generate a root password and show it on-screen / email it. **Change this password immediately** after first login by typing `passwd`.
+
+## 1.3 Create Your Server *(Required)*
+
+*Part 1 — Server Setup*
+
+Entirely in your browser via Hetzner Cloud Console. Make sure you’re inside the [right Project](#05-hetzner-projects-recommended--read-first) before clicking Add Server — resources are project-scoped and can’t be moved between projects later.
+
+> **Tip:** Every field below maps to a concept explained above: [Location](#06-locations--datacenters) · [Image](#08-images--what-image-means) · [Type](#07-server-types--cx-vs-cax-vs-cpx-vs-ccx) · [Networking (IPv4/IPv6)](#09-ipv4-vs-ipv6-recommended--read-this) · [Private Networks](#10-private-networks-optional) · [Placement Groups](#12-placement-groups-optional) · [Cloud config](#13-cloud-init--user-data-optional--power-user) · [Labels](#14-labels-optional). Scroll back up if any term is unclear.
+
+1. Click **Add Server**.
+2. *(Required)* **Location:** Choose closest to your audience (Falkenstein, Nuremberg, Helsinki, Ashburn, or Hillsboro).
+3. *(Required)* **Image:** Select **Ubuntu 24.04**.
+4. *(Required)* **Type:** **CX22** (2 vCPU, 4 GB RAM, \~€4.50/mo) or **CPX21** (3 vCPU AMD, \~€8/mo). You can upgrade later without data loss.
+5. *(Required)* **Networking:** Leave defaults (Public IPv4 + IPv6).
+6. *(Recommended)* **SSH Key:** Select your key from 1.2. If you skipped, leave blank.
+7. *(Optional)* **Firewall:** Create a Cloud Firewall (SSH 22, HTTP 80, HTTPS 443). Can be done later via UFW.
+8. *(Optional)* **Name:** e.g. `web-server-01`.
+9. Click **Create & Buy Now**. Ready in \~30 seconds.
+
+> **Note:** Note your server’s **IPv4 address** (e.g. `168.119.xxx.xxx`) — you’ll need it everywhere.
+
+## 1.4 Connect to Your Server *(Required)*
+
+*Part 1 — Server Setup*
+
+### Method A: Hetzner Web Console (browser)
+
+1. Click your server name in the Hetzner dashboard.
+2. Click the **terminal icon** (`>_`) — top-right of the page.
+3. A black terminal opens in a new tab. Click inside it, press Enter.
+4. Log in as `root`. If you used SSH keys, no password needed. If you skipped SSH keys, enter the password Hetzner emailed you.
+
+> **Tip:** **Pasting in Web Console:** Use **Ctrl+Shift+V** or right-click → Paste.
+
+### Method B: Local terminal (SSH)
+
+```
+ssh root@YOUR_SERVER_IP
+```
+
+First time: type `yes` when asked about host authenticity.
+
+### First thing: update everything *(Required)*
+
+```
+apt update && apt upgrade -y
+```
+
+This installs all security patches. Takes a minute or two.
+
+## 1.5 Secure the Server *(Recommended)*
+
+*Part 1 — Server Setup*
+
+> **Tip:** **Can I skip this?** For CloudPanel (Path B), creating a separate user is optional since CloudPanel manages its own isolation. For Path A, this is strongly recommended.
+
+### Create a non-root user
+
+```
+# Create user (replace "deploy" with any name you like)
+adduser deploy
+
+# Give them admin privileges
+usermod -aG sudo deploy
+```
+
+Set a strong password. Skip optional info by pressing Enter.
+
+### Copy your SSH key to the new user *(Recommended)*
+
+Only needed if you set up SSH keys:
+
+```
+mkdir -p /home/deploy/.ssh
+cp /root/.ssh/authorized_keys /home/deploy/.ssh/
+chown -R deploy:deploy /home/deploy/.ssh
+chmod 700 /home/deploy/.ssh
+chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+### Test the new user *(Required before disabling root)*
+
+> **Web Console users**
+
+> Open a **second Web Console tab** (click the terminal icon again). Log in as `deploy` with your password. Type `sudo whoami` — should output `root`.
+
+Or from a local terminal, open a new window:
+
+```
+ssh deploy@YOUR_SERVER_IP
+sudo whoami    # should output: root
+```
+
+> **Danger:** **Do NOT disable root login** until you’ve confirmed the new user works with sudo. Otherwise you could lock yourself out permanently.
+
+### Disable root login & password auth *(Recommended)*
+
+```
+nano /etc/ssh/sshd_config
+```
+
+Find and change (Ctrl+W to search):
+
+```
+PermitRootLogin no
+PasswordAuthentication no
+```
+
+Remove `#` from the beginning of the line if present. Save: **Ctrl+X** → **Y** → **Enter**.
+
+```
+systemctl restart sshd
+```
+
+> **Web Console users**
+
+> If you skipped SSH keys, do **NOT** set `PasswordAuthentication no` — that locks out SSH entirely. You can still set `PermitRootLogin no` as long as your deploy user works, because the Web Console bypasses SSH.
+
+## 1.6 Firewall Setup (UFW) *(Recommended)*
+
+*Part 1 — Server Setup*
+
+```
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# CRITICAL — allow SSH before enabling!
+sudo ufw allow OpenSSH
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# CloudPanel users: also allow port 8443
+sudo ufw allow 8443/tcp
+
+sudo ufw enable
+sudo ufw status verbose
+```
+
+> **Danger:** Forgot to allow SSH before enabling UFW? Use the **Hetzner Web Console** from the browser to fix it — it bypasses SSH entirely.
+
+## 1.7 Install Fail2Ban *(Recommended)*
+
+*Part 1 — Server Setup*
+
+Auto-bans IPs that try too many failed logins.
+
+```
+sudo apt install -y fail2ban
+sudo cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+sudo fail2ban-client status
+```
+
+## 1.8 Automatic Security Updates *(Recommended)*
+
+*Part 1 — Server Setup*
+
+```
+sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure --priority=low unattended-upgrades
+```
+
+Select **Yes**. Critical patches will now auto-apply.
+
+## 1.9 Basic Monitoring *(Optional)*
+
+*Part 1 — Server Setup*
+
+Give yourself visibility into your server’s health. Two commands to remember:
+
+```
+# Install htop — a visual process/CPU/memory monitor
+sudo apt install -y htop
+
+# Run it (press 'q' to exit)
+htop
+```
+
+```
+# Check disk space
+df -h
+
+# Check memory usage
+free -h
+```
+
+That’s it. Run these occasionally to make sure your server isn’t running out of disk or memory. If disk usage is above 85%, it’s time to clean up or upgrade.
+
+## 🔐 Quick Hardening Checklist
+
+*Part 1 — Server Setup*
+
+Before moving on to Part 2, tick everything off. This is your TL;DR safety net — go back and fix anything unchecked.
+
+### Server Security Checklist
+
+- System updated (`apt update && apt upgrade`) *(Required)*
+- Non-root user created with sudo privileges *(Recommended)*
+- SSH keys set up and working *(Recommended)*
+- Root login disabled (`PermitRootLogin no`) *(Recommended)*
+- Password authentication disabled (if keys used) *(Recommended)*
+- UFW firewall enabled and active *(Recommended)*
+- Fail2Ban installed and running *(Recommended)*
+- Automatic security updates enabled *(Recommended)*
+- Can still SSH in (or access via Web Console) *(Required)*
+
+> **Note:** **Part 1 Complete!** Choose your path: [Path A (Manual LEMP)](#21-install-nginx-path-a-required) or [Path B (CloudPanel)](#31-install-cloudpanel-path-b-required).
+
+---
+
+## 2.1 Install NGINX *(Path A)* *(Required)*
+
+*Part 2A — Manual Stack*
+
+```
+sudo apt install -y nginx
+sudo systemctl start nginx
+sudo systemctl enable nginx
+sudo systemctl status nginx
+```
+
+Visit `http://YOUR_SERVER_IP` in your browser. You should see the NGINX welcome page.
+
+## 2.2 Install PHP *(Path A)* *(Required for WordPress)*
+
+*Part 2A — Manual Stack*
+
+🐘 **PHP** is the programming language WordPress is written in. **PHP-FPM** (“FastCGI Process Manager”) is the background worker that actually runs PHP code when a visitor hits your site. NGINX receives the request and hands any `.php` file to PHP-FPM via a “socket” — a tiny internal pipe between the two programs.
+
+```
+sudo apt install -y php-fpm php-mysql php-curl php-gd php-intl \
+  php-mbstring php-soap php-xml php-xmlrpc php-zip php-imagick php-cli
+```
+
+```
+php -v
+# Note the version (e.g. 8.3) — you'll need this later
+```
+
+## 2.3 Install MariaDB *(Path A)* *(Required for WordPress)*
+
+*Part 2A — Manual Stack*
+
+🗄️ **MariaDB vs MySQL.** A *database* is where WordPress stores your posts, users, and settings. MySQL is the classic one; MariaDB is a free, drop-in replacement by the original MySQL creators. Pick either — WordPress treats them identically. This guide uses MariaDB because it’s the Ubuntu default.
+
+```
+sudo apt install -y mariadb-server
+sudo mysql_secure_installation
+```
+
+**Switch to unix\_socket auth?** → `n` · **Change root password?** → `Y` (set a strong one) · **Remove anonymous users?** → `Y` · **Disallow root login remotely?** → `Y` · **Remove test database?** → `Y` · **Reload privilege tables?** → `Y`
+
+### Create a database for WordPress *(Required)*
+
+```
+sudo mysql
+
+CREATE DATABASE wordpress_db;
+CREATE USER 'wp_user'@'localhost' IDENTIFIED BY 'YOUR_STRONG_PASSWORD_HERE';
+GRANT ALL PRIVILEGES ON wordpress_db.* TO 'wp_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+## 2.4 Cloudflare DNS Setup *(Required)*
+
+*Part 2A — Manual Stack*
+
+Entirely in your browser — Cloudflare Dashboard.
+
+📖 **DNS in one paragraph.** DNS is the internet’s phonebook: it turns a name like `example.com` into an IP address like `203.0.113.10`. You add records to tell the world where your site lives.
+
+📍 **A record** — maps a name to an IPv4 address. This is the one you care about.
+
+🏷️ **Name field** — `@` means the bare domain (`example.com`). `www` means `www.example.com`. `blog` means `blog.example.com` (a **subdomain** — any prefix before your main domain).
+
+⏱️ **TTL** (“time to live”) — how long other computers are allowed to cache this record. “Auto” is fine.
+
+🌐 **Nameservers** — the servers that answer DNS questions for your domain. For Cloudflare to manage your DNS, your domain registrar must point at Cloudflare’s nameservers (Cloudflare shows you which ones when you add the domain).
+
+⏳ **Propagation** — the wait for your new records to spread across the world. Usually a few minutes on Cloudflare; can take up to 24–48 hours in rare cases.
+
+### Main domain
+
+| Type | Name | Content | Proxy | TTL |
+| --- | --- | --- | --- | --- |
+| A | @ | YOUR\_SERVER\_IP | Proxied (orange) | Auto |
+| A | www | YOUR\_SERVER\_IP | Proxied (orange) | Auto |
+
+### Subdomains
+
+| Type | Name | Content | Proxy | TTL |
+| --- | --- | --- | --- | --- |
+| A | blog | YOUR\_SERVER\_IP | Proxied | Auto |
+
+One A record per subdomain. All point to the same IP.
+
+### Additional domains
+
+For a different domain on Cloudflare: same A records (`@` and `www`), same server IP. One server = unlimited domains.
+
+> **Tip:** **Proxied (orange)** = traffic through Cloudflare CDN/DDoS. **DNS only (grey)** = direct to server. Use Proxied for websites, DNS only for SSH or non-web services.
+
+## 2.5 NGINX Virtual Hosts *(Path A)* *(Required)*
+
+*Part 2A — Manual Stack*
+
+🏠 **What’s a virtual host?** One server, many websites. A *virtual host* (or “server block” in NGINX) is a config file that says: “when a request comes in for `example.com`, serve files from *this* folder.” One file per site — that’s how you host multiple domains on a single IP.
+
+📁 **Two folders, one link.** NGINX reads configs from `sites-enabled/`. You write them in `sites-available/` and create a symbolic link (like a shortcut) into `sites-enabled/` to activate them. Unlink to deactivate without deleting.
+
+```
+sudo mkdir -p /var/www/example.com/public_html
+sudo chown -R deploy:deploy /var/www/example.com
+sudo chmod -R 755 /var/www/example.com
+```
+
+```
+sudo nano /etc/nginx/sites-available/example.com
+```
+
+Paste:
+
+```
+server {
+    listen 80;
+    listen [::]:80;
+    server_name example.com www.example.com;
+    root /var/www/example.com/public_html;
+    index index.php index.html index.htm;
+
+    access_log /var/log/nginx/example.com.access.log;
+    error_log  /var/log/nginx/example.com.error.log;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location ~ /\. { deny all; }
+
+    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+    }
+}
+```
+
+> **Warning:** Replace `example.com` with your domain. Match the PHP version: if `php -v` showed 8.1, use `php8.1-fpm.sock`.
+
+### Enable the site
+
+```
+sudo ln -s /etc/nginx/sites-available/example.com /etc/nginx/sites-enabled/
+sudo rm /etc/nginx/sites-enabled/default
+sudo nginx -t      # ALWAYS test before reloading
+sudo systemctl reload nginx
+```
+
+## 2.6 SSL Certificates *(Path A)* *(Required)*
+
+*Part 2A — Manual Stack*
+
+🔒 **SSL certificate = the padlock.** It encrypts traffic between visitors and your site, and it’s what makes URLs show `https://` instead of `http://`. Browsers now warn on any site without one.
+
+🆓 **Let’s Encrypt** is a free certificate authority. You prove you own the domain, it hands you a cert, and it auto-renews every 90 days. Certbot is the tool that does all that talking for you.
+
+### Option 1: Cloudflare handles SSL (easiest) *(Recommended)*
+
+If DNS is Proxied: Cloudflare Dashboard → SSL/TLS → set mode to **Full**. Done. No terminal needed.
+
+### Option 2: Let’s Encrypt *(Optional)*
+
+Temporarily set Cloudflare DNS to grey cloud (DNS only), then:
+
+```
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d example.com -d www.example.com
+sudo certbot renew --dry-run    # test auto-renewal
+```
+
+Switch Cloudflare back to Proxied after. Set SSL mode to **Full (strict)**.
+
+## 2.7 Install WordPress *(Path A)* *(Required)*
+
+*Part 2A — Manual Stack*
+
+```
+cd /var/www/example.com/public_html
+sudo wget https://wordpress.org/latest.tar.gz
+sudo tar -xzf latest.tar.gz
+sudo mv wordpress/* .
+sudo rm -rf wordpress latest.tar.gz
+sudo chown -R www-data:www-data /var/www/example.com/public_html
+sudo find /var/www/example.com/public_html -type d -exec chmod 755 {} \;
+sudo find /var/www/example.com/public_html -type f -exec chmod 644 {} \;
+```
+
+Now visit your domain in a browser — the WordPress wizard appears. Enter your database details from section 2.3.
+
+## 2.8 Multiple Sites & Subdomains *(Path A)* *(Optional — when needed)*
+
+*Part 2A — Manual Stack*
+
+Repeat the same process for each new site:
+
+```
+# 1. Create directory
+sudo mkdir -p /var/www/newdomain.com/public_html
+
+# 2. Copy & edit NGINX config
+sudo cp /etc/nginx/sites-available/example.com /etc/nginx/sites-available/newdomain.com
+sudo nano /etc/nginx/sites-available/newdomain.com
+# Change: server_name, root, log paths
+
+# 3. Enable, test, reload
+sudo ln -s /etc/nginx/sites-available/newdomain.com /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+
+# 4. Add DNS in Cloudflare (browser)
+# 5. Create database if WordPress (sudo mysql → CREATE DATABASE...)
+```
+
+Subdomains work identically — `server_name blog.example.com;` + A record in Cloudflare (`blog` → your IP).
+
+## 2.9 Non-WordPress Sites *(Path A)* *(Optional)*
+
+*Part 2A — Manual Stack*
+
+### Static HTML — simplified config (no PHP block)
+
+```
+server {
+    listen 80;
+    server_name static-site.com www.static-site.com;
+    root /var/www/static-site.com/public_html;
+    index index.html;
+    location / { try_files $uri $uri/ =404; }
+    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2)$ { expires 30d; }
+}
+```
+
+### Node.js — reverse proxy
+
+🔁 **What’s a reverse proxy?** Your Node app listens on an internal port (like 3000), which isn’t reachable from the internet. NGINX sits in front on ports 80/443, takes the public request, and quietly forwards it to your app on port 3000. The visitor only ever talks to NGINX. Same trick powers CloudPanel and Coolify under the hood.
+
+```
+server {
+    listen 80;
+    server_name app.example.com;
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+---
+
+## 3.1 Install CloudPanel *(Path B)* *(Required)*
+
+*Part 2B — CloudPanel*
+
+Free, open-source hosting panel. One-time terminal install, then **everything else is browser-based**.
+
+> **Warning:** **Requires a fresh server.** If you followed Path A, create a new server or rebuild.
+
+```
+apt update && apt -y upgrade && apt -y install curl wget sudo
+```
+
+### MariaDB 11.4 *(Recommended)*
+
+```
+curl -sS https://installer.cloudpanel.io/ce/v2/install.sh -o install.sh; \
+echo "19cfa702e7936a79e47812ff57d9859175ea902c62a68b2c15ccd1ebaf36caeb install.sh" | \
+sha256sum -c && sudo CLOUD=hetzner DB_ENGINE=MARIADB_11.4 bash install.sh
+```
+
+### MySQL 8.0 (alternative)
+
+```
+curl -sS https://installer.cloudpanel.io/ce/v2/install.sh -o install.sh; \
+echo "19cfa702e7936a79e47812ff57d9859175ea902c62a68b2c15ccd1ebaf36caeb install.sh" | \
+sha256sum -c && sudo CLOUD=hetzner DB_ENGINE=MYSQL_8.0 bash install.sh
+```
+
+Takes 5–10 minutes. Lots of text scrolling is normal.
+
+> **Note:** **This is the last time you need the terminal for Path B.** Everything from here is browser-based.
+
+## 3.2 Access CloudPanel & First Login *(Path B)* *(Required)*
+
+*Part 2B — CloudPanel*
+
+Open your browser: `https://YOUR_SERVER_IP:8443`
+
+> **Warning:** Browser security warning is expected (self-signed cert). Click **Advanced** → **Proceed**.
+
+1. *(Required)* Create your admin account immediately.
+2. *(Required)* Log in.
+3. *(Recommended)* Enable Two-Factor Authentication: Account → Security.
+
+> **Danger:** **Do this IMMEDIATELY.** CloudPanel is public on port 8443. If you wait, someone else could create the admin account.
+
+## 3.3 Cloudflare DNS for CloudPanel *(Path B)* *(Required)*
+
+*Part 2B — CloudPanel*
+
+All in your browser.
+
+### Admin panel access *(Recommended)*
+
+| Type | Name | Content | Proxy |
+| --- | --- | --- | --- |
+| A | admin | YOUR\_SERVER\_IP | DNS only (grey) |
+
+Then CloudPanel → Admin Area → Settings → set hostname to `admin.example.com`.
+
+### Your websites *(Required)*
+
+| Type | Name | Content | Proxy |
+| --- | --- | --- | --- |
+| A | @ | YOUR\_SERVER\_IP | Proxied (orange) |
+| A | www | YOUR\_SERVER\_IP | Proxied (orange) |
+
+## 3.4 Add a WordPress Site *(Path B)* *(Required)*
+
+*Part 2B — CloudPanel*
+
+All in the browser:
+
+1. CloudPanel → **Sites** → **Add Site** → **Create a WordPress Site**.
+2. Enter domain (`www.example.com`), site title, admin user/password, site user/password.
+3. Click **Create**. CloudPanel auto-installs WordPress, creates the database, and configures NGINX.
+
+## 3.5 Add a PHP or Static Site *(Path B)* *(Optional)*
+
+*Part 2B — CloudPanel*
+
+Sites → Add Site → choose: **PHP App**, **Node.js**, **Python**, or **Static HTML**. Enter domain, configure, Create. Upload files via SFTP (e.g. FileZilla) using the site user credentials.
+
+## 3.6 Subdomains *(Path B)* *(Optional)*
+
+*Part 2B — CloudPanel*
+
+Two steps, both in browser:
+
+1. **Cloudflare:** A record — `blog` → YOUR\_SERVER\_IP, Proxied.
+2. **CloudPanel:** Sites → Add Site → `blog.example.com` → choose type → Create.
+
+## 3.7 Multiple Domains *(Path B)* *(Optional)*
+
+*Part 2B — CloudPanel*
+
+1. **Cloudflare:** Add domain with A records (`@`, `www`) → your server IP.
+2. **CloudPanel:** Sites → Add Site → `www.otherdomain.com` → configure → Create.
+
+## 3.8 SSL Certificates *(Path B)* *(Required)*
+
+*Part 2B — CloudPanel*
+
+CloudPanel → your site → **SSL/TLS** tab → **Actions** → **New Let’s Encrypt Certificate** → Create and Install.
+
+> **Warning:** If Cloudflare DNS is Proxied, Let’s Encrypt can’t verify via HTTP. Either: (1) temporarily switch to grey cloud, issue cert, switch back, or (2) just use Cloudflare’s SSL (set mode to “Full”) and skip Let’s Encrypt.
+
+## 3.9 Backups & Snapshots *(Path B)* *(Recommended)*
+
+*Part 2B — CloudPanel*
+
+### What gets backed up?
+
+**Hetzner Snapshots/Backups** — capture the *entire server*: all files, databases, configs, everything. Like taking a photo of the whole machine. Stored on Hetzner’s infrastructure.
+
+**Database exports** — just the database (posts, pages, settings). Stored as a `.sql` file wherever you put it.
+
+**For maximum safety:** use Hetzner Backups for “everything” protection, *and* periodically export databases to a separate location (your local computer, Google Drive, S3, etc.).
+
+### Hetzner automatic backups (browser) *(Recommended)*
+
+Hetzner Cloud Console → your server → **Backups** → **Enable**. Costs \~20% of server price. Creates daily full snapshots.
+
+### CloudPanel + Hetzner API snapshots (browser) *(Optional)*
+
+1. Hetzner → Security → API Tokens → Generate (Read & Write).
+2. CloudPanel → Admin Area → Hetzner → Settings → paste token.
+3. Set frequency (e.g. every 6 hours) and retention.
+
+### Manual database backup (terminal) *(Optional)*
+
+```
+# Export a database to a .sql file
+mysqldump -u root -p wordpress_db > ~/backup_$(date +%F).sql
+
+# Download to your computer (run on YOUR machine, not the server)
+scp deploy@YOUR_SERVER_IP:~/backup_*.sql ~/Downloads/
+```
+
+**How often?** Daily for active sites. Weekly minimum. Always before making big changes (updates, plugin installs, migrations).
+
+---
+
+## 4.1 What is Coolify? *(Path C)* *(Required — Read This)*
+
+*Part 2C — Coolify*
+
+**Coolify** is a free, open-source control panel that turns your Hetzner server into your own mini “Heroku” or “Vercel”. Instead of uploading files over SFTP, you **point Coolify at a Git repository** (GitHub, GitLab, etc.) and it builds and deploys your app automatically — every time you push code.
+
+**What Coolify can deploy for you:**
+
+🧱 **Apps from Git** — Node.js, Next.js, Python, Laravel/PHP, Ruby, Go, static sites, anything with a Dockerfile.
+
+🗄️ **Databases** — PostgreSQL, MySQL/MariaDB, MongoDB, Redis, KeyDB, Clickhouse, Dragonfly. One-click create, with automatic backups.
+
+🧰 **“One-click” services** — WordPress, Ghost, n8n, Plausible Analytics, Umami, Uptime Kuma, Gitea, MinIO, and 100+ others from a template library.
+
+🐳 **Any Docker container** — if it has a Docker image, Coolify can run it.
+
+> **Tip:** **When to pick Coolify over CloudPanel:** choose Coolify if you’re a developer deploying your own apps, or you want one-click installs of modern tools (n8n, Plausible, Ghost). Choose CloudPanel if you mainly host classic WordPress/PHP sites for clients.
+
+> **Warning:** **Server size:** Coolify and its builds use more RAM than CloudPanel. Hetzner **CX22 (4 GB RAM) is the practical minimum**. CX32 (8 GB) is more comfortable if you plan to host several apps.
+
+Official docs: [coolify.io/docs](https://coolify.io/docs/get-started/introduction)
+
+### Wait — what’s Docker? What’s a container?
+
+Coolify runs everything using **Docker**, so it’s worth understanding the basic idea (you don’t need to *use* Docker directly — Coolify hides it).
+
+📦 **A container is like a sealed lunchbox for software.** Inside the box is everything the app needs to run — the code, the right version of Node or PHP, system libraries, config — all packed together. The box runs the same way on any computer, because it brings its own environment with it. No more “but it worked on my laptop”.
+
+🏭 **Docker** is the tool that builds and runs these lunchboxes.
+
+🧱 **An image** is the recipe / blueprint for a lunchbox. A **container** is a running copy of it. You can start, stop, and throw away containers freely — the image stays put, ready to make another one.
+
+🏘️ On your Hetzner server, Coolify runs **one container per app** and **one per database**. Each one is isolated from the others — if one app crashes, the rest keep running. If you want to remove an app, Coolify deletes its container and it’s gone cleanly, no leftover files scattered across the system (which is a common pain with manual LEMP setups).
+
+🌐 Coolify also runs a special container called **Traefik** (the “reverse proxy”). Traefik watches the traffic hitting your server on ports 80/443, and routes each incoming request to the correct app container based on the domain — that’s how one server can host many sites on the same IP.
+
+> **Tip:** **You don’t have to learn Docker commands.** Everything in this guide happens in the Coolify browser UI. The words “container”, “image”, “volume” will appear in the interface — now you know what they mean.
+
+## 4.2 Install Coolify *(Path C)* *(Required)*
+
+*Part 2C — Coolify*
+
+One-time terminal install. After this, **everything is browser-based**.
+
+> **Warning:** **Requires a fresh server.** If you followed Path A or Path B, create a new Hetzner server (Ubuntu 22.04 or 24.04) and complete Part 1 (server hardening) first.
+
+1. SSH into your server (or use the Hetzner Web Console) as `root`.
+2. Make sure the system is up to date:
+
+```
+apt update && apt -y upgrade && apt -y install curl
+```
+
+1. Run the official Coolify installer:
+
+```
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+This installs Docker, pulls the Coolify containers, and starts them. Expect 3–8 minutes of scrolling text — that’s normal.
+
+1. When it finishes, the script prints a URL like `http://YOUR_SERVER_IP:8000`. Keep that handy.
+
+### Wait — what’s a port? What’s a firewall?
+
+🚪 **A port is like a numbered door on your server.** Your server has one address (the IP), but thousands of numbered doors. Different services listen at different doors: web traffic uses door **80** (HTTP) and **443** (HTTPS), SSH uses door **22**, Coolify’s dashboard uses door **8000**, and so on.
+
+🛡️ **A firewall (UFW)** is a bouncer that decides which doors are open to the outside world. By default in Part 1 we told UFW to only open doors 22, 80, and 443 — everything else is blocked.
+
+✅ **“Allow port X”** = tell the bouncer to unlock door X. **“Close port X”** = lock it again. You do this with one command; nothing dangerous happens if you type it wrong — you can just rerun it.
+
+> **Warning:** **Open the doors Coolify needs.** If you enabled UFW in section 1.6, run the command below. It unlocks port `8000` (the Coolify dashboard, so you can log into it) and ports `6001`/`6002` (used by Coolify to stream live build logs and the in-browser terminal):
+
+> ```
+> sudo ufw allow 8000/tcp && sudo ufw allow 6001/tcp && sudo ufw allow 6002/tcp
+> ```
+
+> Later, after section 4.4 moves the dashboard onto a real HTTPS domain, you can re-lock port 8000 — we’ll show you exactly how in section 4.13.
+
+> **Note:** **That’s the last terminal command you need for Path C.** Everything from here is in the browser.
+
+## 4.3 Access Coolify & First Login *(Path C)* *(Required)*
+
+*Part 2C — Coolify*
+
+Open your browser: `http://YOUR_SERVER_IP:8000`
+
+1. *(Required)* You’ll see a **“Register”** screen. Create your admin account (name, email, strong password).
+2. *(Required)* Log in.
+3. *(Recommended)* Top-right avatar → **Profile** → enable **Two-Factor Authentication**.
+
+> **Danger:** **Do this IMMEDIATELY.** Port 8000 is public. The *first person* to open the URL becomes the admin — register your account the moment the installer finishes.
+
+## 4.4 Cloudflare DNS for Coolify *(Path C)* *(Required)*
+
+*Part 2C — Coolify*
+
+You want two kinds of DNS records: one for the Coolify dashboard itself, and one (per app) for each site you deploy.
+
+### Dashboard access *(Recommended)*
+
+| Type | Name | Content | Proxy |
+| --- | --- | --- | --- |
+| A | coolify | YOUR\_SERVER\_IP | DNS only (grey) |
+
+Then in Coolify: **Settings** → **Instance Settings** → set **Instance’s Domain** to `https://coolify.example.com`. Coolify will auto-issue a Let’s Encrypt certificate and redirect port 8000 to HTTPS.
+
+### Your apps *(Required)*
+
+For each app you plan to deploy, add a record like:
+
+| Type | Name | Content | Proxy |
+| --- | --- | --- | --- |
+| A | app | YOUR\_SERVER\_IP | DNS only (grey) during SSL issue |
+| A | @ | YOUR\_SERVER\_IP | DNS only (grey) during SSL issue |
+
+> **Warning:** Keep Cloudflare set to **DNS only (grey cloud)** while Coolify issues the Let’s Encrypt certificate. Once it’s issued, you can switch to Proxied (orange) and set Cloudflare SSL mode to **Full (strict)**.
+
+## 4.5 Connect Your Server *(Path C)* *(Required)*
+
+*Part 2C — Coolify*
+
+Coolify is already managing the server it’s installed on — it calls it `localhost`. You don’t need to add it manually. Check it:
+
+1. Left sidebar → **Servers** → you should see `localhost` with a green “Reachable” / “Usable” status.
+2. *(Optional)* Later, to deploy to *another* Hetzner server, click **+ Add**, paste its IP, and give Coolify an SSH key it can use to connect.
+
+## 4.6 Projects & Environments *(Path C)* *(Recommended)*
+
+*Part 2C — Coolify*
+
+Coolify groups things in **Projects** (e.g. “My Blog”, “Client ACME”) and each project has **Environments** (`production`, `staging`, etc.). Apps, databases, and services live inside an environment.
+
+1. Left sidebar → **Projects** → **+ Add** → name it (e.g. “My Blog”) → Create.
+2. Open the project → you’ll see a default `production` environment. Click into it.
+
+## 4.7 Deploy Your First App from Git *(Path C)* *(Required)*
+
+*Part 2C — Coolify*
+
+This is Coolify’s superpower: deploying a site straight from a GitHub repo.
+
+1. Inside your environment → **+ New** → **Application**.
+2. Choose a source:
+   - **Public Repository** — simplest: paste any public GitHub/GitLab URL.
+   - **GitHub App** — for private repos and auto-deploy on push. Click **Add GitHub App** and follow the OAuth flow.
+3. Coolify detects the stack (Next.js, Node, static, Laravel, Dockerfile, etc.). Pick the right **Build Pack**:
+   - **Nixpacks** (default) — zero-config; works for most Node/Python/PHP/Go projects.
+   - **Static** — for plain HTML / built front-ends.
+   - **Dockerfile** — if your repo has one, this is the most predictable option.
+4. Set the **Domain** field to something like `https://app.example.com` (matching the DNS record from 4.4). Coolify handles SSL automatically.
+5. *(Optional)* Open the **Environment Variables** tab and add any secrets your app needs (`DATABASE_URL`, `API_KEY`, etc.).
+6. Click **Deploy**. Watch the build log in real time. First build can take 2–10 minutes; subsequent deploys are much faster thanks to caching.
+
+> **Tip:** **Auto-deploy on push:** if you connected via the GitHub App, every `git push` to the chosen branch redeploys automatically. No SFTP, no SSH.
+
+## 4.8 One-Click Apps (WordPress, Ghost, n8n…) *(Path C)* *(Optional)*
+
+*Part 2C — Coolify*
+
+You don’t need a Git repo for popular tools — Coolify ships templates.
+
+1. Inside your environment → **+ New** → **Service**.
+2. Browse or search the template list: **WordPress**, **Ghost**, **n8n**, **Plausible**, **Umami**, **Uptime Kuma**, **Gitea**, **MinIO**, **Directus**, etc.
+3. Pick a template → set the domain (e.g. `https://blog.example.com`) → **Deploy**. The associated database is created and wired up automatically.
+
+## 4.9 Databases *(Path C)* *(Optional)*
+
+*Part 2C — Coolify*
+
+If your custom app needs its own database:
+
+1. Environment → **+ New** → **Database** → choose **PostgreSQL** / **MySQL** / **MariaDB** / **MongoDB** / **Redis** → **Create**.
+2. Coolify generates credentials and an **internal URL** (something like `postgres://user:pass@postgres-xyz:5432/app`).
+3. Copy that URL into your app’s environment variables (e.g. `DATABASE_URL`) — your app and database are now on the same internal Docker network, no public port needed.
+
+> **Warning:** Only expose a database to the public internet if you absolutely need to (e.g. remote admin tool). Prefer the internal URL.
+
+## 4.10 SSL Certificates *(Path C)* *(Required)*
+
+*Part 2C — Coolify*
+
+Coolify ships with a **Traefik** reverse proxy that issues and renews Let’s Encrypt certificates automatically — you just need to:
+
+1. Use `https://` in the app’s **Domain** field.
+2. Point the domain’s A record at your server IP.
+3. Keep the DNS record **unproxied (grey cloud)** in Cloudflare while Coolify issues the cert. Switch to Proxied afterwards if you want.
+
+If a cert fails to issue, open the app → **Logs** tab → **Proxy** to see Traefik’s reason (usually DNS not yet propagated, or Cloudflare proxy enabled too early).
+
+## 4.11 Backups *(Path C)* *(Recommended)*
+
+*Part 2C — Coolify*
+
+### Whole-server backups *(Recommended)*
+
+Same advice as the other paths: enable **Hetzner Cloud Backups** on the server (Console → server → Backups → Enable). \~20% of the server price, daily full snapshots — the simplest safety net.
+
+### Coolify database backups *(Recommended)*
+
+1. Open any database in Coolify → **Backups** tab.
+2. Turn on **Scheduled Backups** and set a cron (e.g. `0 3 * * *` = every day at 3 AM).
+3. *(Recommended)* Add an **S3-compatible storage** destination (Hetzner Object Storage, Cloudflare R2, Backblaze B2) in **Settings → S3 Storages**, then select it in the backup config. Off-server copies survive server loss.
+
+### Git = backup for app code *(Tip)*
+
+Because apps deploy from Git, your **source code is already backed up** in GitHub/GitLab. You only need to worry about backing up databases and uploaded user files (volumes).
+
+## 4.12 File Management in Coolify *(Path C)* *(Recommended — Read This)*
+
+*Part 2C — Coolify*
+
+This part confuses everyone coming from traditional hosting, so read slowly.
+
+🚫 **There is no `/var/www/html` to SFTP into.** With CloudPanel or a manual LEMP stack, you upload files into a folder on the server. With Coolify, **the files live inside the container** (the sealed lunchbox), not in a normal server folder you can browse. That’s by design — it’s what makes deploys repeatable.
+
+So “editing files on the server” is replaced by three patterns, depending on what you’re trying to do.
+
+### Pattern 1 — App code (HTML, PHP, JS, theme files…)
+
+**Don’t edit it on the server.** Edit it on your computer, `git push`, and Coolify rebuilds automatically. If you connected the GitHub App (4.7), the site updates within a minute of your push. This is the whole point of Coolify.
+
+> **Warning:** If you ever edit files *inside* a running container by hand, the next deploy **wipes your changes** — the container is rebuilt fresh from the image. Always change code in Git.
+
+### Pattern 2 — User uploads & persistent data (WordPress uploads, database files, avatars…)
+
+These live in **Docker volumes**. A volume is a folder on the *real* server that Coolify mounts into the container — so the data survives when the container is rebuilt.
+
+Each app in Coolify has a **Storage** tab where you can see and add volume mounts. For WordPress, for example, there’s a volume mounted at `/var/www/html/wp-content/uploads` so media uploads persist across deploys.
+
+> **Tip:** **Rule of thumb:** if it’s code → it goes in Git. If it’s user-generated (uploads, database rows, logs) → it goes in a volume.
+
+### Pattern 3 — “I just need to look at / upload one file”
+
+Two easy options from the Coolify UI:
+
+1. **Terminal tab** — open your app → **Terminal** tab → a shell inside the container opens in your browser. `ls`, `cat`, `nano` work just like normal.
+2. **SFTP directly to the host server** — connect to the Hetzner server with FileZilla (see the Uploading Files section) as your `deploy` user. Volume data lives under `/var/lib/docker/volumes/` (requires root to read). Prefer Pattern 1 whenever possible.
+
+### Where does each thing actually live?
+
+**Your source code** — GitHub / GitLab (and cached inside the container image).
+
+**Build outputs (node\_modules, compiled files)** — inside the container; disposable, rebuilt every deploy.
+
+**Uploaded files / databases** — Docker volumes on the host at `/var/lib/docker/volumes/`.
+
+**App logs** — in Coolify’s UI: app → **Logs** tab. No need to SSH.
+
+**Coolify’s own config** — `/data/coolify/` on the server.
+
+## 4.13 Security in Coolify *(Path C)* *(Required — Read This)*
+
+*Part 2C — Coolify*
+
+Containers help a lot (each app is isolated), but they don’t replace basic server hygiene. Here’s the beginner-friendly checklist.
+
+### Things you already did in Part 1 still apply
+
+UFW firewall, Fail2Ban, automatic updates, SSH key login, disabled root password login — **all of that protects Coolify too**. Don’t skip Part 1 just because you’re using a control panel.
+
+### Coolify-specific checklist
+
+- Admin account registered *immediately* after install (first visitor becomes admin!) *(Required)*
+- Strong, unique password for the Coolify admin account *(Required)*
+- Two-Factor Authentication enabled (Profile → 2FA) *(Recommended)*
+- Coolify dashboard moved off `http://IP:8000` onto `https://coolify.example.com` (section 4.4) *(Recommended)*
+- After the dashboard works on your HTTPS domain, **re-lock door 8000** (it’s no longer needed — visitors use the domain now). See command below. *(Recommended)*
+- Firewall only has these doors open: **22** (SSH login), **80** (HTTP), **443** (HTTPS), **6001 & 6002** (Coolify live logs/terminal) *(Recommended)*
+
+### How to re-lock port 8000 (once the HTTPS domain works)
+
+After you’ve finished section 4.4 and can reach Coolify at `https://coolify.example.com`, you don’t need the raw `http://IP:8000` entrance anymore. Lock that door back up:
+
+```
+# Lock door 8000 again
+sudo ufw delete allow 8000/tcp
+
+# Check which doors are currently open
+sudo ufw status
+```
+
+The second command prints a little table showing every open port. If you ever need to reopen it temporarily (e.g. your HTTPS domain is broken and you need to get back in), just run `sudo ufw allow 8000/tcp` again — it’s fully reversible.
+
+### Rest of the checklist
+
+- Databases use **internal URLs only** — “Public Port” toggle is OFF unless you truly need remote access *(Required)*
+- Secrets (API keys, DB passwords) kept in Coolify **Environment Variables** — never committed to Git *(Required)*
+- Coolify updated regularly: Settings → **Check for updates** → Update *(Recommended)*
+- Hetzner Cloud Backups enabled on the server *(Recommended)*
+
+### A few gotchas worth knowing
+
+🐳 **Docker can unlock doors behind the firewall’s back.** If you flip the “Public Port” switch on a database or app in Coolify, Docker opens that door directly — UFW won’t stop it, even if you think the door is locked. So treat “Public Port” as a loaded gun: leave it OFF unless you genuinely need to connect from outside the server, and always set a strong password if you turn it on.
+
+🔑 **GitHub App permissions.** When connecting via the GitHub App, only grant access to the repos Coolify needs to deploy — not all your repos.
+
+📜 **Don’t run random templates blindly.** Coolify’s one-click services are convenient, but each one is a third-party app with its own security track record. Stick to well-known ones (WordPress, Ghost, n8n, Plausible) and keep them updated.
+
+🧹 **Old containers/images accumulate** and eat disk. Occasionally run `docker system prune -a` on the server (or let Coolify do it via Settings → **Advanced** → **Cleanup**).
+
+---
+
+## Uploading Files to Your Server (SFTP) *(Recommended — Know This)*
+
+*Part: Day-to-Day*
+
+SFTP (Secure File Transfer Protocol) is how you upload files to your server — themes, plugins, scripts, images, custom code. Think of it as “Google Drive for your server”: a drag-and-drop window showing your computer on one side and the server on the other, with the same secure SSH connection underneath. The most popular free SFTP client is **FileZilla**.
+
+### Install FileZilla
+
+Download from [filezilla-project.org](https://filezilla-project.org/) (free, works on Mac/Windows/Linux). Install it like any other app.
+
+### Connect to your server
+
+Open FileZilla and enter the connection details at the top:
+
+**Host:** `sftp://YOUR_SERVER_IP` (note the `sftp://` prefix — important)
+
+**Username:** your site user (for CloudPanel, this is the site user you created when adding a site; for Path A, use `deploy`)
+
+**Password:** the password for that user
+
+**Port:** `22`
+
+Click **Quickconnect**. Accept the host key warning the first time. You’ll see your local files on the left and your server files on the right.
+
+### Where to upload files
+
+| What | Path (CloudPanel) | Path (Manual / Path A) |
+| --- | --- | --- |
+| WordPress files | `/home/cloudpanel/htdocs/www.example.com` | `/var/www/example.com/public_html` |
+| WordPress themes | `.../wp-content/themes/` | `.../wp-content/themes/` |
+| WordPress plugins | `.../wp-content/plugins/` | `.../wp-content/plugins/` |
+| Custom scripts | `/home/cloudpanel/htdocs/www.example.com/scripts/` | `/var/www/example.com/scripts/` |
+
+Drag files from the left panel (your computer) to the right panel (the server). FileZilla shows upload progress at the bottom.
+
+> **Tip:** **CloudPanel also has a File Manager** in the browser for quick edits. Go to your site → File Manager. It’s basic but works for editing config files or uploading small files without opening FileZilla.
+
+> **Warning:** **Permission issues after upload?** If WordPress can’t read files you uploaded, it’s a permissions problem. For CloudPanel, the site user owns the files automatically. For Path A, you may need to run: `sudo chown -R www-data:www-data /var/www/example.com/public_html`
+
+## Scheduled Tasks / Cron Jobs *(Optional — When Needed)*
+
+*Part: Day-to-Day*
+
+Cron jobs let you run tasks automatically on a schedule — daily data refreshes, weekly reports, hourly API calls, database cleanups, or anything else you can express as a command.
+
+⏰ **What’s cron?** Cron is a built-in Linux scheduler — like a recurring alarm clock that runs commands for you. Each scheduled task is called a *cron job*.
+
+🗓️ **The five stars.** A cron schedule is five fields: `minute hour day month weekday`. A `*` means “every”. So `0 6 * * *` = minute 0 of hour 6, every day — i.e. 6:00 AM daily. Stuck? Paste your schedule into [crontab.guru](https://crontab.guru/) for a plain-English translation.
+
+### WordPress scheduled tasks
+
+WordPress has its own built-in scheduling system (WP-Cron). For most WordPress tasks, you don’t need server-level cron at all:
+
+1. Install the **WP Crontrol** plugin from your WordPress admin dashboard (Plugins → Add New → search “WP Crontrol”).
+2. Go to **Tools → Cron Events** to see all scheduled tasks and add new ones.
+
+This handles things like scheduled posts, cache clearing, backup plugin schedules, and email digests — all from the browser.
+
+### Server-level cron jobs (non-WordPress)
+
+For anything outside WordPress — Python scripts, Node.js tasks, shell scripts, API calls — you use server cron jobs.
+
+#### CloudPanel (browser) *(Path B)*
+
+CloudPanel has a built-in cron manager:
+
+1. CloudPanel → your site → **Cron Jobs** tab.
+2. Click **Add Cron Job**.
+3. Set the **schedule** and the **command**:
+
+**Minute:** 0 · **Hour:** 6 · **Day:** \* · **Month:** \* · **Weekday:** \* → runs at 6:00 AM every day
+
+**Minute:** \*/30 · **Hour:** \* · **Day:** \* · **Month:** \* · **Weekday:** \* → runs every 30 minutes
+
+#### Common cron job examples
+
+| Task | Command |
+| --- | --- |
+| Run a Python script | `python3 /home/cloudpanel/htdocs/www.example.com/scripts/refresh.py` |
+| Run a Node.js script | `node /home/cloudpanel/htdocs/www.example.com/scripts/sync.js` |
+| Run a bash/shell script | `bash /home/cloudpanel/htdocs/www.example.com/scripts/cleanup.sh` |
+| Hit a URL / webhook | `curl -s https://api.example.com/refresh` |
+| Database backup | `mysqldump -u root -p'PASSWORD' wordpress_db > /home/cloudpanel/backups/db_$(date +\%F).sql` |
+
+#### Manual cron (terminal) *(Path A)*
+
+If you’re on Path A or want to manage cron from the terminal:
+
+```
+# Open the cron editor
+crontab -e
+
+# Add a line at the bottom. Format: minute hour day month weekday command
+# Example: run a Python script every day at 6am
+0 6 * * * python3 /var/www/example.com/scripts/refresh.py
+
+# Example: run every 30 minutes
+*/30 * * * * curl -s https://api.example.com/webhook
+
+# Save and exit (Ctrl+X → Y → Enter in nano)
+```
+
+> **Tip:** **Need a Python library?** If your script uses something like `requests` or `pandas`, SSH in once and run `sudo pip3 install requests pandas`. This is a one-time setup — the cron job will use them automatically after that.
+
+> **Warning:** **Use full paths in cron.** Don’t write `python3 script.py` — write `python3 /full/path/to/script.py`. Cron runs in a minimal environment and doesn’t know where your files are unless you tell it explicitly.
+
+## Email & Contact Forms *(Recommended — Read This)*
+
+*Part: Day-to-Day*
+
+This catches almost everyone off guard: **your Hetzner server cannot reliably send emails out of the box.** If you install a WordPress contact form plugin (WPForms, Contact Form 7, etc.) and test it, the emails will either never arrive or land in spam.
+
+### Why?
+
+Hetzner servers don’t come with a mail server configured, and even if they did, emails from new/unknown servers are almost always flagged as spam by Gmail, Outlook, etc. You need a dedicated email service to send reliably.
+
+### The fix: use an SMTP plugin + email service
+
+1. **Choose an email sending service** (all have free tiers):
+
+**Brevo (formerly Sendinblue)** — 300 emails/day free. Easy setup. Good for most sites.
+
+**Mailgun** — 1,000 emails/month free (on Flex plan). Popular with developers.
+
+**Gmail SMTP** — use your existing Gmail. Limited to \~500/day. Simple but requires app passwords.
+
+**Amazon SES** — 62,000 emails/month free (if sending from EC2, though you’d need to set it up separately from Hetzner). Very cheap beyond that.
+
+1. **Install a WordPress SMTP plugin.** Go to Plugins → Add New → search for **“WP Mail SMTP”** (by WPForms). Install and activate.
+2. **Configure it.** WP Mail SMTP → Settings → choose your email service → enter the API key or SMTP credentials from step 1.
+3. **Test it.** WP Mail SMTP → Tools → Email Test → send a test email to yourself. Check it arrives in your inbox (not spam).
+
+> **Tip:** **This applies to ALL WordPress emails** — not just contact forms. Password resets, order confirmations (WooCommerce), notification emails, everything. Without an SMTP plugin, none of these will work reliably.
+
+> **Warning:** **This is for sending email FROM your site.** If you want a proper email address like `hello@yourdomain.com` for receiving and sending personal/business email, that’s a separate service entirely — use Google Workspace, Zoho Mail (free tier), or Cloudflare Email Routing (free forwarding). Don’t try to run your own mail server on Hetzner unless you really know what you’re doing.
+
+## Reboots & Maintenance *(Recommended — Read This)*
+
+*Part: Day-to-Day*
+
+Servers occasionally need to restart — after a kernel update, if something hangs, or during Hetzner maintenance windows. Here’s what to know.
+
+### Do my sites come back automatically?
+
+✅ **Yes** — if services are “enabled” (which they are if you followed this guide). NGINX, PHP-FPM, MariaDB, CloudPanel, and Fail2Ban all start automatically on boot. Your websites will be back online within 30–60 seconds of a reboot.
+
+⚠️ **Exception:** if you’re running a Node.js app or custom process that you started manually (e.g. `node app.js`), it will NOT restart automatically. You’d need a process manager like **PM2** to handle that. CloudPanel’s Node.js sites handle this for you.
+
+### How to reboot
+
+```
+# Graceful reboot (from terminal or Web Console)
+sudo reboot
+```
+
+Or from the browser: Hetzner Cloud Console → your server → **Power** → **Reboot** (soft/graceful) or **Reset** (hard/forced — use only if server is unresponsive).
+
+### Hetzner scheduled maintenance
+
+Hetzner occasionally performs maintenance on their physical hardware. They will email you in advance (usually 1–2 weeks notice). During maintenance, your server may be migrated to another physical host — this causes a brief reboot (usually under 5 minutes). Your data and IP address stay the same. No action needed from you.
+
+### When to manually reboot
+
+- After a **kernel update** — if `apt upgrade` says a reboot is required, you’ll see a message. Reboot when convenient.
+- If the server is **unresponsive** — try the Hetzner Cloud Console first. If even the Web Console doesn’t respond, use the Power → Reset button in the dashboard.
+- After changing **major system settings** — most changes don’t need a reboot (just restart the relevant service), but kernel parameters and some package upgrades do.
+
+> **Tip:** **Check if a reboot is needed** without actually rebooting: `cat /var/run/reboot-required`. If the file exists, a reboot is pending. If it says “No such file”, you’re fine.
+
+---
+
+## Cloudflare Recommended Settings *(Recommended)*
+
+*Part: Reference*
+
+All done in the Cloudflare dashboard (browser). Applies to both paths.
+
+### Security
+
+| Setting | Location | Value |
+| --- | --- | --- |
+| SSL/TLS Mode | SSL/TLS → Overview | **Full (strict)** if you have Let’s Encrypt; **Full** if using Cloudflare SSL only |
+| Always Use HTTPS | SSL/TLS → Edge Certificates | **On** |
+| Minimum TLS Version | SSL/TLS → Edge Certificates | **TLS 1.2** |
+| Automatic HTTPS Rewrites | SSL/TLS → Edge Certificates | **On** |
+| Security Level | Security → Settings | **Medium** |
+| Bot Fight Mode | Security → Bots | **On** |
+
+### Speed
+
+| Setting | Location | Value |
+| --- | --- | --- |
+| Auto Minify | Speed → Optimization | **JS, CSS, HTML — all on** |
+| Brotli Compression | Speed → Optimization | **On** |
+
+### Caching
+
+| Setting | Location | Value |
+| --- | --- | --- |
+| Caching Level | Caching → Configuration | **Standard** |
+| Browser Cache TTL | Caching → Configuration | **Respect Existing Headers** |
+
+### Network
+
+| Setting | Location | Value |
+| --- | --- | --- |
+| HTTP/3 (QUIC) | Network | **On** |
+| WebSockets | Network | **On** |
+
+> **Tip:** **“Under Attack” mode:** If you’re being DDoS’d, Security → Settings → enable “Under Attack Mode”. Shows a challenge page to filter bots. Disable when attack stops.
+
+## Test Everything Works *(Required)*
+
+*Part: Reference*
+
+Before calling it done, run through this checklist:
+
+### Go-Live Verification
+
+- Site loads in browser (type your domain — do you see your site?)
+- HTTPS works (padlock icon in address bar, no warnings)
+- `http://` redirects to `https://` automatically
+- WordPress admin loads (`yourdomain.com/wp-admin`)
+- NGINX config test passes (`sudo nginx -t`)
+- Can still SSH in / access via Web Console
+- Firewall is active (`sudo ufw status`)
+- `www` and non-`www` both work (one should redirect to the other)
+- Subdomains load (if configured)
+
+## Common Mistakes *(Recommended — Read This)*
+
+*Part: Reference*
+
+These will save you hours of frustration. Every one of these is something real beginners hit regularly.
+
+### DNS not propagated yet
+
+You added DNS records but the site doesn’t load. **Fix:** wait 5–30 minutes (Cloudflare is fast). Check at [dnschecker.org](https://dnschecker.org/). Don’t keep changing records — that resets the timer.
+
+### Cloudflare proxy breaking Let’s Encrypt
+
+Let’s Encrypt needs to reach your server directly. **Fix:** temporarily set DNS to “DNS only” (grey cloud), issue the cert, then switch back to Proxied.
+
+### Wrong PHP socket version in NGINX config
+
+NGINX error: “connect() failed” or 502 Bad Gateway. **Fix:** check `php -v` and make sure the socket path matches: `php8.3-fpm.sock` vs `php8.1-fpm.sock`.
+
+### Forgot to reload NGINX after config changes
+
+You edited a config but nothing changed. **Fix:** always run `sudo nginx -t` then `sudo systemctl reload nginx` after any config change.
+
+### File permissions wrong (www-data vs deploy)
+
+WordPress can’t upload images, install plugins, or update. **Fix:** `sudo chown -R www-data:www-data /var/www/yoursite/public_html`. NGINX/PHP run as `www-data`, not your user.
+
+### Firewall blocking ports
+
+Site doesn’t load but server is running. **Fix:** `sudo ufw status` — make sure 80 and 443 are listed as ALLOW. For CloudPanel, also 8443.
+
+### “Too many redirects” loop
+
+Cloudflare SSL set to “Flexible” while your server also forces HTTPS. **Fix:** set Cloudflare SSL to “Full” (not Flexible).
+
+### Editing the wrong NGINX file
+
+Files in `sites-available/` are templates. Only files linked (symlinked) in `sites-enabled/` are active. Always check both.
+
+### Running commands without sudo
+
+Error: “Permission denied”. **Fix:** add `sudo` before the command. If logged in as root, sudo isn’t needed.
+
+## How to Reconnect Later *(Recommended — Save This)*
+
+*Part: Reference*
+
+When you close your terminal and come back tomorrow, here’s how to get back in:
+
+```
+# From your local terminal:
+ssh deploy@YOUR_SERVER_IP
+
+# Or if you didn't set up a separate user:
+ssh root@YOUR_SERVER_IP
+```
+
+- **Your server IP does not change** unless you delete and recreate the server. You can always find it on the Hetzner Cloud Console dashboard.
+- **The Hetzner Web Console** is always available as a fallback — just click the terminal icon on your server’s page in the dashboard.
+- **Tip:** bookmark `ssh deploy@YOUR_IP` in a note on your computer so you don’t have to look it up every time.
+
+## Scaling Later *(Optional — Read When Ready)*
+
+*Part: Reference*
+
+What happens when your sites grow? You have three options, roughly in order of effort:
+
+📈 **Upgrade your server (vertical scaling)** — in the Hetzner dashboard, click your server → **Rescale**. Pick a bigger plan. Takes a quick reboot, no data loss. This handles most growth scenarios.
+
+🌐 **Use Cloudflare’s CDN more aggressively** — you’re already using it. Enable “Cache Everything” page rules for static sites. This offloads traffic from your server. Free.
+
+🖥️ **Add more servers (horizontal scaling)** — for high-traffic sites, you can put a load balancer in front of multiple servers. This is advanced and usually only needed if you’re getting thousands of concurrent visitors. Hetzner offers load balancers from \~€6/month.
+
+🗄️ **Separate database server** — move MySQL/MariaDB to its own server for better performance. Advanced, but straightforward with Hetzner’s private networking.
+
+For most sites, upgrading the server size is all you’ll ever need. Don’t over-engineer until you have the traffic to justify it.
+
+## Troubleshooting
+
+*Part: Reference*
+
+### Error 521 (Web server is down)
+
+Check NGINX: `sudo systemctl status nginx`. Check firewall: `sudo ufw status`. Check IP in Cloudflare matches your server.
+
+### Error 522 (Connection timed out)
+
+Server overloaded or ports blocked. Check with `htop` and `sudo ufw status`.
+
+### Error 525/526 (SSL handshake failed)
+
+Cloudflare SSL mode mismatch. Use “Full” if no server cert, “Full (strict)” if you have Let’s Encrypt.
+
+### Can’t connect via SSH
+
+Use the **Hetzner Web Console** (always works). Check SSH is running: `sudo systemctl status sshd`. Check firewall: `sudo ufw status`.
+
+### NGINX shows wrong site
+
+Each site needs a unique `server_name`. Run `sudo nginx -t` to check for config errors.
+
+### WordPress white screen of death
+
+Check PHP error log: `sudo tail -50 /var/log/nginx/example.com.error.log`. Usually a plugin conflict or memory limit. Edit `wp-config.php` and add `define('WP_DEBUG', true);` to see the real error.
+
+## Command Cheat Sheet
+
+*Part: Reference*
+
+| Task | Command |
+| --- | --- |
+| Connect to server | `ssh deploy@YOUR_SERVER_IP` |
+| Update system | `sudo apt update && sudo apt upgrade -y` |
+| Restart NGINX | `sudo systemctl restart nginx` |
+| Reload NGINX (no downtime) | `sudo systemctl reload nginx` |
+| Test NGINX config | `sudo nginx -t` |
+| Restart PHP-FPM | `sudo systemctl restart php8.3-fpm` |
+| Restart MariaDB | `sudo systemctl restart mariadb` |
+| Check disk space | `df -h` |
+| Check memory | `free -h` |
+| Live process monitor | `htop` (press q to exit) |
+| NGINX error log | `sudo tail -50 /var/log/nginx/error.log` |
+| Firewall status | `sudo ufw status verbose` |
+| Fail2Ban status | `sudo fail2ban-client status sshd` |
+| Renew SSL certs | `sudo certbot renew` |
+| Backup database | `mysqldump -u root -p db_name > backup.sql` |
+| Restore database | `mysql -u root -p db_name < backup.sql` |
+| Cancel current command | `Ctrl+C` |
+| Exit nano editor | `Ctrl+X → Y → Enter` |
+| Reboot server | `sudo reboot` |
+
+> **Note:** **You’re all set!** You now have a complete, secured Hetzner server hosting one or more websites with Cloudflare protection. Remember: keep the server updated, test NGINX configs before reloading, and back up regularly. If anything breaks, check Common Mistakes and Troubleshooting above, or use the Hetzner Web Console as a safety net.
+
+---
+
+## Synology NAS Backup
+
+*Part: Backups & Monitoring*
+
+This section covers how to automatically back up your entire Coolify server to a Synology NAS every night. The backup runs on its own — you don’t need to do anything once it’s set up.
+
+> **Warning:** **This requires Tailscale.** The backup connects to your NAS through Tailscale — a private network that links your server and NAS securely. Install Tailscale first before following these steps.
+
+### How it works
+
+Every night at 4am, your server runs a script that copies all your Coolify data and Docker app data to your Synology NAS using a tool called `rsync`. It connects using a special SSH key so no password is needed. Everything is automated.
+
+**What gets backed up:**
+
+- Coolify settings, config, and its own database
+- All Docker volumes — WordPress, MariaDB, Redis, Uptime Kuma, and any other apps
+- SSL certificates and proxy config
+
+### Step 1 — Install and connect Tailscale
+
+If Tailscale is not already on your server, install it:
+
+```
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up
+```
+
+It gives you a link — open it in your browser, log in with your Tailscale account, and approve the new device. Then confirm your NAS is visible:
+
+```
+tailscale status
+```
+
+You should see your Synology listed as `active`. If it’s not there, the backup cannot reach the NAS.
+
+### Step 2 — Create an SSH key for the backup
+
+This creates a special key that lets your server log into the NAS automatically without needing a password every time:
+
+```
+ssh-keygen -t ed25519 -f /root/.ssh/nas_push -N ""
+```
+
+This creates two files:
+
+- `/root/.ssh/nas_push` — the private key. Never share this.
+- `/root/.ssh/nas_push.pub` — the public key. This goes on the NAS.
+
+### Step 3 — Copy the public key to the NAS
+
+First, show your public key:
+
+```
+cat /root/.ssh/nas_push.pub
+```
+
+Copy the entire line it shows. Then SSH into your NAS (replace `100.64.0.2` with your NAS’s Tailscale IP, and `nas-user` with your NAS username):
+
+```
+ssh nas-user@100.64.0.2
+```
+
+It will ask for your NAS password. Once logged in, add your public key:
+
+```
+echo "PASTE_YOUR_PUBLIC_KEY_HERE" >> ~/.ssh/authorized_keys
+exit
+```
+
+Now test the passwordless connection works:
+
+```
+ssh -i /root/.ssh/nas_push nas-user@100.64.0.2 "echo test"
+```
+
+If it prints `test` with no password prompt — it worked.
+
+### Step 4 — Enable rsync on the Synology
+
+Log into your Synology web interface and go to:
+
+**Control Panel → File Services → rsync tab**
+
+- Tick **Enable rsync service** ✅
+- Leave **Enable rsync account** unticked ❌
+- Click Apply
+
+> **Danger:** **If backups ever stop working, check this first.** Synology updates can silently disable the rsync service. It takes 30 seconds to re-enable once you know where to look.
+
+### Step 5 — Create the backup script
+
+Copy and paste this entire block into your terminal — it creates the backup script in one go:
+
+```
+cat > /etc/cron.daily/coolify-backup << 'EOF'
+#!/bin/bash
+LOGFILE="/var/log/coolify-backup.log"
+echo "=== Backup started: $(date) ===" >> $LOGFILE
+rsync -avz -e "ssh -i /root/.ssh/nas_push" \
+  /data/coolify/ \
+  nas-user@100.64.0.2:/volume1/Coolify-Backup/ >> $LOGFILE 2>&1
+rsync -avz -e "ssh -i /root/.ssh/nas_push" \
+  /var/lib/docker/volumes/ \
+  nas-user@100.64.0.2:/volume1/Coolify-Backup/docker-volumes/ >> $LOGFILE 2>&1
+echo "=== Backup finished: $(date) ===" >> $LOGFILE
+EOF
+chmod +x /etc/cron.daily/coolify-backup
+```
+
+Replace `nas-user` and `100.64.0.2` with your own NAS username and Tailscale IP.
+
+### Step 6 — Test it
+
+```
+bash /etc/cron.daily/coolify-backup
+tail /var/log/coolify-backup.log
+```
+
+You should see files being listed and a finish time at the end with no errors. The backup will now run automatically every night.
+
+### Checking the backup is working
+
+| What to check | Command |
+| --- | --- |
+| View the backup log | `tail /var/log/coolify-backup.log` |
+| Check cron ran the script | `grep -i "coolify-backup" /var/log/syslog \| tail -20` |
+| Run a backup right now | `bash /etc/cron.daily/coolify-backup` |
+| Check Tailscale is connected | `tailscale status` |
+| Test SSH connection to NAS | `ssh -i /root/.ssh/nas_push nas-user@100.64.0.2 "echo test"` |
+| Check files on NAS from terminal | `ssh -i /root/.ssh/nas_push nas-user@100.64.0.2 "ls -la /volume1/Coolify-Backup/"` |
+
+You can also check manually in the Synology File Station — go to **volume1 → Coolify-Backup** and check the Modified Date column on the folders. They should show today’s date after a successful backup.
+
+> **Tip:** **About SSH keys:** The `nas_push` key is only for the backup script. It has nothing to do with Coolify. Coolify manages its own separate SSH keys automatically — you never need to touch those.
+
+---
+
+## Uptime Kuma Monitoring
+
+*Part: Backups & Monitoring*
+
+Uptime Kuma is a monitoring tool. It watches your services and alerts you if something goes down. You can set it up through Coolify in a few minutes.
+
+### Install Uptime Kuma via Coolify
+
+1. In Coolify, click **New Resource → search “uptime”** → select **Uptime Kuma** (the plain one, no database needed).
+2. Set your domain — for example `status.yourdomain.com:3001`. Uptime Kuma requires port 3001. Make sure your Cloudflare DNS has an A record pointing this subdomain to your server IP.
+3. Click **Save** then deploy. Once running, open the URL in your browser.
+4. Choose **SQLite** as the database — it’s the simplest option and works perfectly for monitoring.
+5. Create your admin account and log in.
+
+### Setting up a Synology heartbeat monitor
+
+A heartbeat monitor works differently to a normal website monitor. Instead of Uptime Kuma checking if something is online, your Synology calls Uptime Kuma every minute to say “I’m alive”. If it stops calling, Uptime Kuma marks it as down and alerts you.
+
+1. In Uptime Kuma, click **Add New Monitor**.
+2. Set **Monitor Type** to **Push**.
+3. Set **Friendly Name** to **Synology**.
+4. Leave **Heartbeat Interval** at **60** seconds.
+5. Click **Save**. Uptime Kuma gives you a Push URL — copy it.
+6. Log into your Synology web interface → **Control Panel → Task Scheduler**. Find your heartbeat task (or create a new one) and set it to run every minute with this script — replacing the URL with your new Push URL:
+
+```
+curl -fsS --max-time 10 "https://YOUR_PUSH_URL?status=up&msg=OK&ping=" > /dev/null
+```
+
+> **Tip:** **Every time you set up a new server**, Uptime Kuma generates a new Push URL. You must update the Task Scheduler on your Synology with the new URL, otherwise the monitor will show as down.
+
+### Synology Task Scheduler settings
+
+| Setting | Value |
+| --- | --- |
+| Task name | Vault Heartbeat (or anything you like) |
+| Repeat | Daily |
+| Frequency | Every 1 minute |
+| Script | `curl -fsS --max-time 10 "YOUR_PUSH_URL" > /dev/null` |
+
+> **Note:** **Once set up**, Uptime Kuma will show your Synology as online within one minute of the first heartbeat being sent.

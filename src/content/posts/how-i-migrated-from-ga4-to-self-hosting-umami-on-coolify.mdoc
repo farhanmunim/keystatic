@@ -1,0 +1,523 @@
+---
+title: "How I migrated from GA4 to self-hosting Umami on Coolify"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Umami running on a Hetzner VPS through Coolify, tracking three sites, with five years of Google Analytics history rebuilt inside it – and everything I’d do differently."
+date: 2026-09-18T20:36
+featured: false
+categories:
+  - "technical"
+tags:
+  - "analytics"
+  - "coolify"
+  - "umami"
+  - "vps"
+---
+
+Google Analytics is free. It costs you in other ways: a heavy third-party script, visitor data sent elsewhere, and a cookie banner dragged along behind it.
+
+Umami does the same job in a much smaller package. MIT-licensed, cookieless, and it runs on your own server with a single Postgres database. No ClickHouse, no Redis, no queues – one app container and one database.
+
+| You get | You don’t get |
+| --- | --- |
+| Pageviews, visitors, referrers | Session replay |
+| Countries, cities | Heatmaps |
+| Browsers, devices, OS | Anything that needs a cookie |
+| UTM campaigns, custom events |  |
+
+I moved three sites over in one evening. Rebuilding five years of GA history inside it took rather longer.
+
+This is the full walkthrough: the steps you’ll follow, plus the bits I got wrong so you don’t have to.
+
+**A note on the examples.** `mochi.yourdomain.com` is a placeholder, not my real subdomain. Website IDs and dates are illustrative too.
+
+## What you’ll need
+
+- A VPS running Coolify (mine is on Hetzner)
+- A domain you control, with DNS you can edit quickly
+- A site you can add a `<script>` tag to
+- A GA4 property, if you want the history
+
+My setup, for reference: domain on Cloudflare with the orange cloud on, main site built with Astro on Cloudflare Pages, plus two others — one static, one a small web app.
+
+You don’t need that exact stack. Two steps are shaped by it: the Cloudflare IP header and the Astro snippet.
+
+## Step 1: Pick a subdomain that won’t get blocked
+
+Do this first. It’s the one decision that’s genuinely annoying to change later.
+
+Ad blockers work from filter lists, and self-hosting doesn’t get you an exemption. Rather than repeat the folklore, I searched the current EasyPrivacy source. Here’s what’s actually in it:
+
+| Pattern | What’s in the list |
+| --- | --- |
+| `analytics.` as a subdomain | No wildcard rule. Only \~200 named hosts (`analytics.nike.com`, `analytics.python.org`…) |
+| `stats.`, `metrics.`, `insights.` | Same – named hosts only, nothing generic |
+| `umami.yourdomain.com` | Not blocked today. But self-hosted instances get added by name once spotted; there’s a section literally commented “Plausible selfhosted” |
+| `/umami.js` as a **filename** | **Blocked everywhere**, on any domain |
+| `/script.js` (Umami’s default) | Not blocked generically |
+| `/api/send` (Umami’s default endpoint) | Not blocked generically |
+
+Three rules follow from that:
+
+1. **Don’t name the subdomain after the tool.** `umami.` is the one that gets enumerated.
+2. **Never rename the tracker script to `umami.js`.** The default `script.js` is fine.
+3. Something neutral is safest (`mochi.`, `kettle.`). But `insights.` or even `analytics.` are clean against current lists if you’d rather the name meant something.
+
+I went with a meaningless word.
+
+EasyPrivacy is only one list. AdGuard, Brave and Ghostery keep their own, so none of this is a guarantee. Once you’re live, uBlock Origin’s logger tells you definitively whether a request is blocked and which rule did it.
+
+## Step 2: DNS
+
+In Cloudflare DNS, add an **A record** for your subdomain pointing at the VPS IPv4.
+
+If you’re using the orange cloud, there’s a catch. Coolify’s Traefik gets its certificate through an HTTP-01 challenge, and that fails through the proxy. Two ways round it:
+
+| Option | How |
+| --- | --- |
+| Grey-cloud first (simplest) | Grey-cloud the record, deploy, let the certificate issue, then turn the orange cloud back on |
+| Origin Certificate | Use a Cloudflare Origin Certificate on the Coolify side |
+
+Either way, set Cloudflare SSL/TLS to **Full (strict)**. On “Flexible”, traffic between Cloudflare and your server is plaintext.
+
+Check DNS is live before you deploy. Traefik will fail the certificate request if it isn’t:
+
+```
+dig mochi.yourdomain.com +short
+```
+
+## Step 3: Deploy Umami in Coolify
+
+Umami is in Coolify’s one-click catalogue, so this part is easy.
+
+1. Project → **Create New Resource** → search **Umami** → click it.
+2. Coolify creates the service with two containers (Umami app and PostgreSQL) and generates the secrets.
+3. Open **Domain settings** on the Umami container. Newer Coolify splits this into separate fields:
+
+| Field | Value |
+| --- | --- |
+| Protocol | `https` |
+| Domain | `mochi.yourdomain.com` – **no scheme in this field** |
+| Port | `3000` – type it in. The greyed-out 3000 is placeholder text, not a value |
+| Search engine indexing | Non-indexable. It’s a private dashboard |
+| www redirect | None |
+
+1. **Deploy.** The first run takes a few minutes while Prisma runs its migrations.
+
+My mistake here: I typed `https://mochi.yourdomain.com` into the Domain field, forgetting Protocol was its own dropdown. That gives you `http://https://…` and nothing works.
+
+## Step 4: Environment variables worth adding
+
+None are required. Coolify’s template generates `DATABASE_URL`, `POSTGRES_PASSWORD` and `APP_SECRET` for you.
+
+You’ll see `APP_SECRET=$SERVICE_PASSWORD_64_UMAMI`. That’s a Coolify reference to a generated 64-character secret, not a literal value. Leave it alone, and don’t hand-edit any `$SERVICE_*` reference.
+
+These are the ones worth adding. Coolify → the Umami service → **Environment Variables** → Add → Save → **Redeploy**:
+
+| Variable | Value | Why |
+| --- | --- | --- |
+| `CLIENT_IP_HEADER` | `cf-connecting-ip` | **Required if the Cloudflare proxy is on.** Without it, every visitor looks like a Cloudflare datacentre. Must be lowercase – uppercase silently does nothing |
+| `DISABLE_TELEMETRY` | `1` | Cosmetic |
+| `DISABLE_UPDATES` | `1` | You update through Coolify anyway |
+| `IGNORE_IP` | Your home IP | Keeps your own visits out. Only works once `CLIENT_IP_HEADER` is set |
+| `REMOVE_TRAILING_SLASH` | `1` | **Only if your site serves paths without trailing slashes.** Read Step 9 first – it can make things worse |
+
+Skip `TRACKER_SCRIPT_NAME` and `COLLECT_API_ENDPOINT`. The defaults aren’t on the filter lists, and changing them means editing every script tag if you change your mind later.
+
+## Step 5: First login
+
+Open `https://mochi.yourdomain.com` – no port. Sign in with `admin` / `umami`.
+
+Then **immediately** go to Settings → Users. Change the password and rename the account. Set your timezone in Profile while you’re there.
+
+## Step 6: Add your websites
+
+Settings → Websites → Add website. Give it a name and the domain, with no protocol and no `www`.
+
+Save, then hit Edit to copy the **Website ID**. That’s the UUID that goes in your script tag.
+
+The ID isn’t a secret. It sits in the page source of every site running Umami, so there’s no need to hide it in an env var.
+
+One instance tracks as many sites as you like. Each gets its own entry and its own ID, and the dropdown at the top-left switches between them.
+
+Do this for every site you’re moving. Expect each one to have its own quirks — mine did:
+
+| Site | Quirk | What I did |
+| --- | --- | --- |
+| Main site (Astro, Cloudflare Pages) | Five years of GA. `pagePath` blank before mid-2022. Trailing slashes everywhere | Blank paths became `/(unknown)`. Left the slashes alone |
+| Static side project | Same page reachable as `/` and `/index.html`, `/changelog` and `/changelog.html` | Folded the `.html` variants together on import. Site should redirect them going forward |
+| Web app | Mostly slash-free paths with one stray `/blog/`. Admin and login pages in the data | Stripped the stray slash. Used `IGNORE_IP` to keep my own admin visits out |
+
+## Step 7: Put the script on the site
+
+The tag Umami gives you:
+
+```
+<script defer src="https://mochi.yourdomain.com/script.js" data-website-id="9e9dbe50-…"></script>
+```
+
+Put it in `<head>`, in whatever shared layout or template your site uses, so it lands once on every page.
+
+For Astro on Cloudflare Pages, that’s the base layout:
+
+```
+{import.meta.env.PROD && (
+  <script
+    defer
+    src="https://mochi.yourdomain.com/script.js"
+    data-website-id="9e9dbe50-…"
+  ></script>
+)}
+```
+
+`import.meta.env.PROD` is built into Astro, so `npm run dev` locally won’t pollute your dashboard. Commit, push, let Pages rebuild.
+
+If a site is maintained through some other tool, this instruction was enough for mine:
+
+> Add Umami analytics tracking to this site. Insert the following script tag inside `<head>` on every page served to visitors, using the shared layout or template if there is one so it’s added once. Place it before any existing Google Analytics tags and do not remove those. `[script tag]` Do not add data-do-not-track. Confirm which files you changed.
+
+## Step 8: Check it’s actually working
+
+Open the site in Chrome → F12 → **Network** tab → type your subdomain in the Filter box → reload.
+
+You want **two** entries: `script.js` returning 200, and a POST to `/api/send`.
+
+What I saw was `script.js` 200 and nothing else. The script loaded and chose not to send anything.
+
+The cause was `data-do-not-track="true"`, which I’d added as a courtesy. It tells the script to bail out if the browser sends a Do Not Track or Global Privacy Control signal – which Brave, Firefox in strict mode and plenty of extensions do by default.
+
+The script was doing exactly what I’d asked. Removing the attribute fixed it instantly.
+
+Umami is cookieless and stores no personal identifier either way. That attribute buys you nothing and costs you a chunk of your data. Don’t add it.
+
+Other things that look the same:
+
+| What you see | Cause | Fix |
+| --- | --- | --- |
+| No request at all | Cloudflare **Rocket Loader** rewriting `defer` scripts | Cloudflare → Speed → Optimization → turn it off |
+| `script.js` from `(disk cache)` | You’re testing a stale copy | Tick **Disable cache** in the Network toolbar (only works while DevTools is open) |
+| `script.js` 404 | Typo in the path or subdomain | Check `src` against the Domain field in Coolify |
+| POST returns 403 | Cloudflare WAF blocking it | Check the firewall events log |
+| Request blocked or cancelled | Your own ad blocker | Test in a clean profile |
+| Dashboard empty, Network fine | You’re on Overview with “This year” | Check **Realtime** – it shows hits within seconds |
+
+One more: visiting the site from another device doesn’t magically create data. Only a page carrying the script does.
+
+## Step 9: A word on trailing slashes
+
+Umami stores the path exactly as the browser reports it. So `/blog` and `/blog/` are two different pages.
+
+`REMOVE_TRAILING_SLASH=1` strips the slash from *incoming* hits. It does **not** touch rows already in the database.
+
+Before you set it, open `yourdomain.com/blog` with no slash and watch the address bar:
+
+| What happens | What it means | What to do |
+| --- | --- | --- |
+| Redirects to `/blog/` | Your site uses trailing slashes | **Don’t set the variable.** GA exports usually have slashes too, so you’d create the split you’re trying to avoid |
+| Stays at `/blog` | Your site is slash-free | Set the variable, and strip the slashes from imported rows so they match |
+
+For the second case:
+
+```
+UPDATE website_event
+SET url_path = left(url_path, -1)
+WHERE url_path <> '/' AND url_path LIKE '%/';
+```
+
+I nearly set this without checking. My site redirects to the slash, so it would have been a mistake.
+
+## Step 10: Bring your Google Analytics history across
+
+The honest bit first: **Umami has no import feature.** It’s not a hidden option, it’s a years-old open request.
+
+Two things make it harder than it sounds:
+
+1. Umami’s `/api/send` endpoint timestamps events server-side, at the moment they arrive. You can’t POST historical pageviews and have them land on past dates. Backfilling has to be a direct database insert.
+2. Umami spreads data across a `session` table and a `website_event` table, with foreign keys, visit IDs and its own vocabulary for browsers and devices. You can’t just load flat rows in.
+
+The old community tool, `ga-extractor`, targets Umami v1’s schema and would produce nonsense against a current build.
+
+So the plan is: export what GA4 will give you, read the real schema off your own database, and write a generator that turns one into the other.
+
+### Exporting from GA4
+
+The GA4 web UI caps exports and samples anything large. What you want is a Google Sheets add-on that talks to the GA4 Data API directly, giving you a flat, unsampled, row-per-combination export.
+
+I used **GA4 Magic Reports** – free, in the Workspace Marketplace. It produces exactly the shape the generator needs.
+
+1. New Google Sheet → **Extensions → Add-ons → Get add-ons** → search “GA4 Magic Reports” → install and authorise it against the Google account that owns the GA4 property.
+2. **Extensions → GA4 Magic Reports → Create new report.** A sidebar opens on the right.
+3. Fill it in:
+
+| Field | Value |
+| --- | --- |
+| Report name | Anything – it becomes the tab name |
+| Account / Property | The GA4 property for the site |
+| Date range | As early as the property goes, through to today |
+| Dimensions (in this order) | `sessionMedium`, `sessionSource`, `date`, `browser`, `deviceCategory`, `operatingSystem`, `pagePath`, `city`, `country` |
+| Metrics | `totalUsers`, `sessions`, `screenPageViews` |
+| Limit / max rows | Leave at the default for now — see below |
+
+1. **Create report**, then **Extensions → GA4 Magic Reports → Run reports.**
+
+Each report lands in its own tab. The add-on also builds a **Report Configuration** sheet listing every report as a row.
+
+That sheet is the useful part. You can edit a date range there and re-run, rather than rebuilding from the sidebar every time.
+
+The top of each result tab is a header block – Property, Date range, Last run, Total rows, Rows returned, plus Cardinality, Thresholding and Sampling flags. Then a Totals row, then the detail rows under a repeated header. The generator skips the header block and starts reading from the last header row.
+
+**Check that header block before you export anything.** You want `Sampling: No` and `Thresholding: No`. If either says Yes, GA has altered the data and your reconstruction won’t match.
+
+**The row limit is why my main site needed three reports.** One combination of all nine dimensions per row adds up quickly over five years.
+
+Compare `Total rows` with `Rows returned`. If they differ, the report was truncated. Split by date range in the Report Configuration sheet until each one fits:
+
+| Report | Rows |
+| --- | --- |
+| 2015–2023 | 9,478 |
+| 2024 | 5,932 |
+| 2025–today | 4,211 |
+
+The smaller sites fitted in a single report.
+
+To export: with a result tab selected, **File → Download → Comma Separated Values (.csv)**. One file per tab. The generator reads every matching file and concatenates them.
+
+Those three metrics cover everything Umami’s main views display. What I deliberately left out, and why:
+
+| Not pulled | Why |
+| --- | --- |
+| `hour` | Would let you spread events along a real time-of-day curve. Only worth it if you care about hourly charts for old data. I didn’t |
+| `language`, `screenResolution`, `region` | Umami has columns for them, but they’d be synthetic at row level. Leaving them NULL is more truthful — those panels show “Unknown” before the cutover and populate normally afterwards |
+| `pageTitle` | Titles change over the years, and Umami shows paths anyway |
+
+### Read the schema off your own database
+
+Coolify → the Umami service → **Terminal** → pick the **PostgreSQL container**. The Umami image has no `psql`.
+
+```
+psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -P pager=off -c "\d session" -c "\d website_event"
+psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -P pager=off -c "select migration_name from _prisma_migrations order by finished_at desc limit 5"
+```
+
+`-P pager=off` matters. Without it, output stops at an `(Enter: next line)` prompt and the web terminal suspends the process. If that happens: `fg` then `q`, or `kill %1`.
+
+Mine was on migration `14_add_link_and_pixel`, well past v2. The columns that mattered:
+
+| Table | Columns |
+| --- | --- |
+| `session` | `session_id`, `website_id`, `browser`, `os`, `device`, `screen`, `language`, `country` (**char(2), ISO codes**), `region`, `city`, `created_at`, `distinct_id` |
+| `website_event` | `event_id`, `website_id`, `session_id`, `visit_id` (**not null**), `created_at`, `url_path`, `referrer_domain`, `event_type` (1 = pageview), `hostname`, plus UTM and click-ID columns |
+
+### How the generator maps GA to Umami
+
+| GA4 | Umami |
+| --- | --- |
+| `totalUsers` | One `session` row each |
+| `sessions` | One `visit_id` each, spread across the sessions |
+| `screenPageViews` | One `website_event` row each, spread across the visits |
+| `country` name | ISO-2 via `pycountry`, plus a fix-up map for GA’s spellings (`Côte d'Ivoire`, `Myanmar (Burma)`, `Turkey`, `Russia`…) |
+| `browser` | Umami’s vocabulary: `Chrome→chrome`, `Safari (in-app)→ios-webview`, `Edge→edge-chromium`, `Android Webview→chromium-webview` |
+| `operatingSystem` | `Windows→Windows 10`, `Macintosh→Mac OS`, `Android→Android OS`, `iOS→iOS` |
+| `sessionSource` | `referrer_domain`, with search engines mapped to their domain (`google→google.com`) |
+| `(direct)` / `(not set)` | NULL |
+| `date` | A timestamp inside that day, spread along a plausible daytime curve |
+
+Every visit gets at least one event, even where GA reported more sessions than pageviews. Totals land about 0.5% above GA as a result.
+
+Visits are spaced more than 30 minutes apart so Umami treats them as distinct.
+
+The generator writes one `.sql` file wrapped in `BEGIN` / `COMMIT`, so any error rolls the whole lot back. It’s parameterised on website ID, hostname, cutoff date and CSV filename pattern – each site was a copy with those four values changed.
+
+### The blank paths (the bit I nearly got wrong)
+
+My main site’s export had 2,529 rows with no `pagePath`. First instinct: drop them as noise.
+
+That would have been a real mistake. Look at where they sat:
+
+| Year | Pageviews with a path | Blank |
+| --- | --- | --- |
+| 2021 | 0 | 3,448 |
+| 2022 | 6,528 | 12,510 |
+| 2023 onward | 31,503 | 0 |
+
+GA4 simply wasn’t recording `pagePath` before mid-2022. Dropping the blanks would have deleted 2021 entirely and two thirds of 2022.
+
+Map them to a literal path instead. I used `/(unknown)`.
+
+The timeline stays intact, the totals reconcile with GA, and the pages table labels the gap honestly rather than quietly handing it to the homepage.
+
+Before you throw any rows away, check *where* the gaps sit.
+
+### Normalising static-site paths
+
+Two of my smaller sites had the same page reachable under several URLs: `/` and `/index.html`, `/changelog` and `/changelog.html`, `/blog` and `/blog/`.
+
+The generator folds those together on import.
+
+Worth doing, but it only half solves it. Your live site needs to redirect the variants too, or the split reappears from day one.
+
+### Pick a cutoff date
+
+Every import stops the day *before* live tracking started. Historical and real data never overlap on the same day.
+
+That also makes it trivial to undo:
+
+```
+DELETE FROM website_event WHERE website_id='…' AND created_at < '2026-09-18';
+DELETE FROM session       WHERE website_id='…' AND created_at < '2026-09-18';
+```
+
+### Loading it
+
+From your PC. Windows 10/11 has `ssh` and `scp` built in, so there’s nothing to install:
+
+```
+scp "C:\path\to\umami_ga_import.sql" root@<vps-ip>:/tmp/
+ssh root@<vps-ip>
+```
+
+Run that `scp` in a **second PowerShell tab**, not inside the SSH session. The file is on your PC. Run it on the server and it tries to resolve a host called `C:`. Ask me how I know.
+
+Then on the VPS, one command at a time:
+
+```
+PG=$(docker ps --format '{{.Names}}' | grep -i postgres); echo $PG
+```
+
+That should print exactly one container name.
+
+```
+# backup first, always
+docker exec $PG sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' | gzip > ~/umami-pre-import.sql.gz
+zcat ~/umami-pre-import.sql.gz | grep -c "CREATE TABLE"     # expect 14
+```
+
+```
+# load
+docker exec -i $PG sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < /tmp/umami_ga_import.sql
+```
+
+You’ll get a stream of `INSERT 0 1000` lines. The last line must be `COMMIT`. If you see `ROLLBACK`, nothing was written.
+
+```
+# verify
+docker exec $PG sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -P pager=off -c "select date_part('"'"'year'"'"',created_at) yr, count(*) from website_event group by 1 order by 1"'
+rm /tmp/umami_ga_import.sql
+```
+
+Then set the Umami date range to **All time** and have a look.
+
+### What to expect afterwards
+
+| Reliable | Wrong or empty for the historical period |
+| --- | --- |
+| Traffic over time | Bounce rate and visit duration (event spacing is synthetic) |
+| Top pages | Hourly charts (generic curve) |
+| Referrers | Screen, language, region (not exported) |
+| Countries and cities | Journeys, Funnels, Retention, Cohorts, Attribution |
+| Browsers, OS, devices |  |
+
+My year-by-year totals matched GA to within a few dozen views.
+
+The Journeys-type reports need real event sequencing, which aggregate exports simply don’t contain.
+
+One number to watch: visitors will read higher than GA’s headline user count. GA dedupes a returning person across days, and row-level exports can’t. Compare visits and pageviews, not visitors.
+
+## Getting into the VPS from Windows
+
+I’d never done SSH from PowerShell before this, so here are the notes I wish I’d had.
+
+You need two things to start: the server’s IP (Hetzner console → Servers → the IPv4 on the server page, or the Tailscale IP if you use it), and how you authenticate – root password or SSH key.
+
+```
+ssh root@<ip>
+```
+
+First time it asks `Are you sure you want to continue connecting (yes/no)?` – type `yes`. Then a password prompt, where nothing appears as you type.
+
+A `root@hostname:~#` prompt means you’re in. `Permission denied (publickey)` means password login is disabled and you’ll need a key set up through the Hetzner console.
+
+**What actually happened to me:** the connection sat silent for 30 seconds, then `Connection timed out`. The Hetzner Cloud Firewall on that server had 80 and 443 open, but not 22.
+
+| Fix | Note |
+| --- | --- |
+| Add an inbound TCP 22 rule in Hetzner → Firewalls | Ideally restricted to your home IP |
+| Use the Tailscale IP (`100.x.x.x`) | Bypasses the Hetzner firewall entirely |
+
+Tailscale was already on the box, so I used that and left 22 closed.
+
+Two more things worth knowing:
+
+- **The Hetzner browser console mangles input.** `&&` arrived as `77` and line breaks between commands disappeared, so `apt update && apt upgrade -y` followed by `reboot` became one rejected line. Keyboard layout mismatch. Use SSH for anything longer than a single word.
+- **Run commands a few at a time.** Pasting ten lines works right up until something fails, and then you can’t see which line did it. I did the whole import in batches of three, checking output each time.
+
+## The reboot notice
+
+`*** System restart required ***` at login means a package was updated that can’t be hot-swapped. `cat /var/run/reboot-required.pkgs` tells you which.
+
+Mine listed a new kernel plus `libc6` and `libssl3` – the C library and the TLS library every process on the box uses. Those are almost always security fixes, and until you reboot, everything running is still on the old copies.
+
+Not an emergency. Not something to leave for weeks either.
+
+What a reboot affects:
+
+| Service | Impact |
+| --- | --- |
+| Anything on Cloudflare Pages | None |
+| Everything in Coolify | Down 1–2 minutes, comes back on its own |
+| Uptime Kuma | Alerts on itself. Expected |
+
+```
+apt update
+apt upgrade -y
+reboot
+```
+
+Three separate commands. Reconnect after a couple of minutes and run `docker ps` to confirm the containers are back.
+
+Ignore the “new release 24.04 available” nag. A major version upgrade is its own project.
+
+## Backups and updates
+
+If you already back up your Docker volumes, that covers the Postgres volume. But a copy of a live volume isn’t a clean restore point.
+
+Add a scheduled `pg_dump` in Coolify – the service → Scheduled Tasks, on the Postgres container — writing into the volume so your existing backup job picks it up. Mine rsyncs to a NAS nightly:
+
+```
+pg_dump -U umami umami | gzip > /var/lib/postgresql/data/backup/umami-$(date +\%F).sql.gz
+```
+
+Keep the pre-import dumps for a couple of weeks, then bin them.
+
+For updates, Coolify → the service → Redeploy pulls the latest image. Take a dump before any major version bump.
+
+Never change the Postgres image’s major version on an existing install without testing a dump-and-restore first.
+
+## Retiring Google Analytics
+
+Leave GA running alongside Umami for a few weeks so you can compare live numbers.
+
+Then pull the tags – and check how many you actually have. My main site had **two** GA4 properties firing, which I only spotted in the Network tab.
+
+Once GA is gone, look at your cookie banner again. Umami is cookieless, so if analytics cookies were the only reason it existed, it can go too.
+
+Update your privacy page to say analytics are cookie-free, self-hosted, and where the data lives.
+
+## Mistakes to skip past
+
+These cost me time, roughly in order of how avoidable they were:
+
+| # | Mistake |
+| --- | --- |
+| 1 | `data-do-not-track="true"` silently dropping visitors. Don’t add it |
+| 2 | Nearly setting `REMOVE_TRAILING_SLASH` without checking my site’s URL style |
+| 3 | Nearly dropping the blank-path GA rows without checking they were the whole of 2021 |
+| 4 | Typing `https://` into a Domain field that had a separate Protocol dropdown |
+| 5 | Running `scp` inside the SSH session instead of on my PC |
+| 6 | Forgetting `-P pager=off` and suspending psql in the web terminal |
+| 7 | `CLIENT_IP_HEADER` needing to be lowercase |
+
+## The whole thing, in one paragraph
+
+Pick a neutral subdomain → add the DNS record → one-click Umami in Coolify with `https` / domain / `3000` → add `CLIENT_IP_HEADER=cf-connecting-ip` if you’re behind Cloudflare → change the admin password → add each website → script tag in `<head>` with no `data-do-not-track` → check the Network tab for two requests → GA4 Magic Reports in Sheets with nine dimensions and three metrics, split into reports that fit the row limit → download the CSVs → read the real schema off your Postgres container → generate the SQL per site → SSH in (Tailscale if 22 is closed) → scp the file up → back up → load → verify → set the range to All time → run GA in parallel for a few weeks → pull the tags.

@@ -1,0 +1,77 @@
+---
+title: "Output Bricks form submission count"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Writing a function which depends on the count of a Bricks Builder form submission? Here’s how to get the count thanks to Jenn Lee from the Bricks team!"
+date: 2024-05-17T08:55
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+```php
+<?php
+// Ensure the namespace and class are loaded
+use Bricks\Integrations\Form\Submission_Database;
+
+function get_total_entries_count($form_id) {
+    // Get instance of Submission_Database
+    $submission_db = Submission_Database::get_instance();
+
+    // Get the total entries count for the specified form ID
+    $total_entries = $submission_db::get_entries_count($form_id);
+
+    return $total_entries;
+}
+
+// Example usage
+$form_id = 'yleviq'; // Replace with your form ID
+$total_entries = get_total_entries_count($form_id);
+
+echo 'Total entries for form ' . $form_id . ': ' . $total_entries;
+?>
+```
+
+## Bonus code – output count for submissions for logged in user
+
+```php
+<?php
+// Ensure the namespace and class are loaded
+use Bricks\Integrations\Form\Submission_Database;
+
+function get_user_form_submission_count($form_id) {
+    // Check if the user is logged in
+    if (!is_user_logged_in()) {
+        return 'User is not logged in.';
+    }
+
+    // Get the current logged-in user ID
+    $user_id = get_current_user_id();
+
+    global $wpdb;
+
+    // Table name
+    $table_name = $wpdb->prefix . 'bricks_form_submissions';
+
+    // Prepare and execute the SQL query to count the user's submissions for the specified form ID
+    $sql = $wpdb->prepare(
+        "SELECT COUNT(*) FROM {$table_name} WHERE form_id = %s AND user_id = %d",
+        $form_id, $user_id
+    );
+    
+    // Get the result
+    $submission_count = $wpdb->get_var($sql);
+
+    return $submission_count;
+}
+
+// Example usage
+$form_id = 'mcsnjs'; // Replace with your form ID
+$user_submission_count = get_user_form_submission_count($form_id);
+
+echo 'Total submissions for form ' . $form_id . ' by the current user: ' . $user_submission_count;
+?>
+```

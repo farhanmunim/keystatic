@@ -1,0 +1,37 @@
+---
+title: "Docker cleanup commands to free up disk space on a VPS"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Quick Docker commands I use to reclaim disk space on my VPS by removing unused images, containers, and build cache while keeping project volumes intact."
+date: 2026-05-31T16:57
+featured: false
+categories:
+  - "technical"
+tags:
+  - "vps"
+---
+
+Docker can quietly consume gigabytes of storage over time. When my VPS starts running low on disk space, I use these two commands…
+
+The first command removes unused Docker build cache:
+
+```
+docker builder prune -a -f 
+```
+
+The second removes unused images, stopped containers, networks, and other Docker resources:
+
+```
+docker system prune -a -f
+```
+
+Importantly, these commands do not remove Docker volumes, so project data and databases remain safe.
+
+To see how much space Docker is using before and after cleanup:
+
+```
+docker system df
+```
+
+I run this cleanup periodically on my VPS to keep storage usage under control.

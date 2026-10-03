@@ -9,7 +9,7 @@ const REPO = 'farhanmunim/keystatic';
 // One shared uploads folder for all images and files. Originals are stored untouched.
 const UPLOADS = { directory: 'public/uploads', publicPath: '/uploads/' } as const;
 
-const platforms = ['Website', 'GitHub', 'LinkedIn', 'X', 'Bluesky', 'Mastodon', 'Instagram', 'YouTube', 'Other'];
+const platforms = ['Website', 'GitHub', 'LinkedIn', 'X', 'Bluesky', 'Mastodon', 'Instagram', 'YouTube', 'Buy Me a Coffee', 'Other'];
 
 const socialLinks = (label = 'Social links') =>
   fields.array(
@@ -53,7 +53,7 @@ const cover = () => ({
 const content = () =>
   fields.markdoc({
     label: 'Content',
-    options: { image: { ...UPLOADS } },
+    options: { image: { ...UPLOADS }, table: true },
   });
 
 const title = () => fields.slug({ name: { label: 'Title', validation: { isRequired: true } } });
@@ -234,7 +234,7 @@ export default config({
         last_name: fields.text({ label: 'Last name', validation: { isRequired: true } }),
         avatar: fields.image({ label: 'Avatar', ...UPLOADS }),
         social: socialLinks(),
-        about: fields.markdoc({ label: 'About the author', options: { image: { ...UPLOADS } } }),
+        about: fields.markdoc({ label: 'About the author', options: { image: { ...UPLOADS }, table: true } }),
       },
     }),
   },
@@ -264,6 +264,12 @@ export default config({
         analytics_url: fields.url({
           label: 'Analytics dashboard link',
           description: 'A read-only Umami share URL. When set, it is embedded at /analytics.',
+        }),
+        noindex: fields.checkbox({
+          label: 'Hide this site from search engines',
+          description:
+            'Adds a noindex meta tag to every page and makes /robots.txt disallow all crawlers. Turn off when you are ready to launch.',
+          defaultValue: false,
         }),
         head_html: fields.text({
           label: 'Head scripts',

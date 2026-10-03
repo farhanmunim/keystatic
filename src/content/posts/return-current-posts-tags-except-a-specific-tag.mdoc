@@ -1,0 +1,37 @@
+---
+title: "Return current post’s tags except a specific tag"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Want to output all tags of a post except for a specific tag? Use this snippet to do just that!"
+date: 2024-02-11T20:18
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+I will use Bricks Builder and a code element but you can use your builder of choice and a code snippet plugin to make a short code and then embed as required.
+
+```php
+<?php
+// Get the current post ID
+$post_id = get_the_ID();
+
+// Get tags for the current post
+$tags = get_the_tags($post_id);
+
+// If there are tags
+if ($tags) {
+    // Iterate through each tag
+    foreach ($tags as $tag) {
+        // Check if the tag is not "ExcludeMe"
+        if ($tag->name !== 'ExcludeMe') {
+            // Output the tag name with a link to its archive page
+            echo '<li><a href="' . get_tag_link($tag->term_id) . '">' . $tag->name . '</a></li>';
+        }
+    }
+}
+?>
+```

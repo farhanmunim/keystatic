@@ -1,0 +1,125 @@
+---
+title: "CSS-Only Fluid Typography Generator"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Want your website’s text to look perfect on any screen? This guide will show you how to use my CSS-only fluid typography generator. Just copy and paste the code, tweak a few values, and you’re good to go!"
+date: 2024-11-17T14:38
+featured: false
+categories:
+  - "technical"
+tags:
+  - "web-development"
+---
+
+> **Note:** I actually came up with this a few weeks ago but I finally came around to doing the write-up – check-out [my GitHub repo](https://github.com/farhanmunim/wordpress) for more random WordPress snippets.
+
+Just to clarify, there are some fantastic online tools like [webSemantics](https://websemantics.uk/tools/responsive-font-calculator/) and [Utopia](https://utopia.fyi/type/calculator/) that make creating responsive typography super simple. They’re great for quickly testing values and seeing changes right away, especially if you’re just starting out.
+
+However, the advantage of this CSS-only method is that everything stays within your code. You won’t need to go to another site, copy over generated CSS, or return later having to remember your breakpoints. It gives you full control over customizing your typography exactly how you want, while remaining fast, flexible, and lightweight for any project.
+
+I plan to include this in my blueprint child theme going forward and recommend doing the same if you’re not using any third-party CSS frameworks (to avoid conflicts).
+
+## Step 1: Copy the CSS
+
+Here’s the complete CSS code for the fluid typography generator. Add it to your stylesheet or child theme:
+
+```css
+:root {
+
+ /* Input 1rem or 1px */
+  --unit: 1rem;
+
+ /* Input without the units */
+  --min-viewport: 36;
+  --max-viewport: 76.8;
+  --h1-min: 3.2;
+  --h1-max: 4.8;
+  --h2-min: 2.4;
+  --h2-max: 3.2;
+  --h3-min: 1.8;
+  --h3-max: 2.4;
+  --body-min: 1.6;
+  --body-max: 1.6;
+
+/* Auto-calcs */
+  --viewport-range: calc(var(--max-viewport) - var(--min-viewport));
+ 
+/* CSS variable: --fs-h1 */
+  --fs-h1-font-range: calc(var(--h1-max) - var(--h1-min));
+  --fs-h1-fluid-slope: calc(var(--fs-h1-font-range) / var(--viewport-range));
+  --fs-h1-fluid-neg-offset: calc(-1 * var(--min-viewport) * var(--fs-h1-fluid-slope));
+  --fs-h1-fluid-base: calc(var(--fs-h1-fluid-neg-offset) + var(--h1-min));
+  --fs-h1: clamp(
+    calc(var(--h1-min) * var(--unit)),
+    calc(var(--fs-h1-fluid-base) * var(--unit) + var(--fs-h1-fluid-slope) * 100vw),
+    calc(var(--h1-max) * var(--unit))
+  );
+  
+/* CSS variable: --fs-h2 */
+  --fs-h2-font-range: calc(var(--h2-max) - var(--h2-min));
+  --fs-h2-fluid-slope: calc(var(--fs-h2-font-range) / var(--viewport-range));
+  --fs-h2-fluid-neg-offset: calc(-1 * var(--min-viewport) * var(--fs-h2-fluid-slope));
+  --fs-h2-fluid-base: calc(var(--fs-h2-fluid-neg-offset) + var(--h2-min));
+  --fs-h2: clamp(
+    calc(var(--h2-min) * var(--unit)),
+    calc(var(--fs-h2-fluid-base) * var(--unit) + var(--fs-h2-fluid-slope) * 100vw),
+    calc(var(--h2-max) * var(--unit))
+  );
+  
+/* CSS variable: --fs-h3 */
+  --fs-h3-font-range: calc(var(--h3-max) - var(--h3-min));
+  --fs-h3-fluid-slope: calc(var(--fs-h3-font-range) / var(--viewport-range));
+  --fs-h3-fluid-neg-offset: calc(-1 * var(--min-viewport) * var(--fs-h3-fluid-slope));
+  --fs-h3-fluid-base: calc(var(--fs-h3-fluid-neg-offset) + var(--h3-min));
+  --fs-h3: clamp(
+    calc(var(--h3-min) * var(--unit)),
+    calc(var(--fs-h3-fluid-base) * var(--unit) + var(--fs-h3-fluid-slope) * 100vw),
+    calc(var(--h3-max) * var(--unit))
+  );
+  
+/* CSS variable: --fs-body */
+  --fs-body-font-range: calc(var(--body-max) - var(--body-min));
+  --fs-body-fluid-slope: calc(var(--fs-body-font-range) / var(--viewport-range));
+  --fs-body-fluid-neg-offset: calc(-1 * var(--min-viewport) * var(--fs-body-fluid-slope));
+  --fs-body-fluid-base: calc(var(--fs-body-fluid-neg-offset) + var(--body-min));
+  --fs-body: clamp(
+    calc(var(--body-min) * var(--unit)),
+    calc(var(--fs-body-fluid-base) * var(--unit) + var(--fs-body-fluid-slope) * 100vw),
+    calc(var(--body-max) * var(--unit))
+  );
+}
+```
+
+## Step 2: Adjust the Settings
+
+At the top of the code, you’ll see some variables. These control how the text sizes behave. Update the values to fit your design:
+
+- `--unit`: Set the base unit for all font sizes. You can use 1rem for scalability or 1px if you prefer a fixed base.
+- `--min-viewport` and `--max-viewport`: Define the range of screen sizes where the font will scale.
+- `--h1-min` and `--h1-max`: Control the smallest and largest size for h1 headings.
+- `--h2-min`, `--h3-min`, etc.: Adjust other font sizes the same way.
+
+## Step 3: Apply Font Sizes to Elements
+
+Once you’ve customized the variables, apply the fluid font sizes to your HTML elements like this via your child theme, stylesheet, or drop the variables into your global theme styles:
+
+```css
+h1 {
+  font-size: var(--fs-h1);
+}
+
+h2 {
+  font-size: var(--fs-h2);
+}
+
+h3 {
+  font-size: var(--fs-h3);
+}
+
+body {
+  font-size: var(--fs-body);
+}
+```
+
+> **Warning:** Disclaimer: Although I came up with this solution, I used AI to help with the negative offset requirement.

@@ -1,0 +1,299 @@
+---
+title: "Organise your wp-admin menus without plugins!"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "If you’re like me and don’t use many of the wp-admin menu links or simply want to have your most used links in 1 place, you can use this post to learn how to do just that without any extra plugins or “hacks”."
+date: 2024-02-21T11:58
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+Here are my reasons for going down this route:
+
+1. I did not want to use any plugins! However, I will point out that plugins such as [Admin Menu Editor](https://en-gb.wordpress.org/plugins/admin-menu-editor/) exist – this plugin may be a great option for you!
+2. My intention is not to hide or “white label” WordPress, but to remove unused links and make my often used links easily available.
+3. As I manage all of my scripts through my child theme and sometimes make variations, I like to see which theme I am currently using and the version number without having to navigate to a different page.
+4. Whilst I could’ve just used basic CSS to hide the elements I do not want to see, WordPress has actual functions and hooks for these areas – so why not use them properly.
+5. I have my snippets inside of my child theme which I can access and update easily.
+
+## Before and after
+
+Before:
+
+\*UPDATING IMAGE\*
+
+After:
+
+List of changes:
+
+1. Removed links from the wp-admin top menu bar
+2. Removed links from the wp-admin side menu bar
+3. Removed default wp-dashboard widgets and tabs
+4. Added custom top-level link and sub-menu links to the wp-admin side menu bar
+5. Updated wp-admin footer with active theme name and version
+
+## Quickly understanding wp-admin menu links
+
+The majority of of wp-admin links will point to some sort of core php file. All we are going to do is remove that link using the correct hook (but not change the core file of course) – sounds simple right?
+
+For example, the `Comments` link in the menu is linked to the `edit-comments.php` file, the `Settings` link in the menu is linked to the `options-general.php` file and so on. You can easily see what the top-level menu item is pointed to by simply looking at the URL and seeing what comes after `yourdomain/wp-admin/` for default wp-admin links.
+
+If you have links on there from external sources such as a plugins or themes, generally they will hook into `admin.php` and have a specified page or post name denoted after an `=` sign in the URL.
+
+For example, for All In One WP Migration plugin, the top-level menu link looks like `yourdomain/wp-admin/admin.php?page=ai1wm_export` so I will target `ai1wm_export` to remove this (actual snippet shared later on).
+
+Now let the fun begin…
+
+## The snippets
+
+As mentioned earlier, I have my snippets inside of my child theme but you can have it pretty much anywhere that accepts PHP snippets such as a snippets plugin. I recommend placing your custom snippets somewhere you can easily access via your hosting’s file manager or FTP.
+
+Disclaimer: I am not a PHP expert but this is working properly for me. Although all of the snippets on here are 100% reversible and won’t break your website as we are not directly altering any core code, you should still understand what the snippets are doing. I have included comments on almost every line to help you understand.
+
+### Remove the wp-dashboard widgets
+
+```php
+// Remove wp dashboard widgets
+function remove_dashboard_widgets() {
+    remove_meta_box('dashboard_primary', 'dashboard', 'side');       // WordPress News
+    remove_meta_box('dashboard_quick_press', 'dashboard', 'side');   // Quick Draft
+    remove_meta_box('dashboard_activity', 'dashboard', 'normal');    // Activity
+    remove_meta_box('dashboard_right_now', 'dashboard', 'normal');   // At a Glance
+    remove_meta_box('dashboard_site_health', 'dashboard', 'normal'); // Site Health Status
+    remove_action('welcome_panel', 'wp_welcome_panel');              // Welcome Panel
+}
+add_action('wp_dashboard_setup', 'remove_dashboard_widgets');
+```
+
+### Remove the wp-dashboard tabs
+
+```php
+// Remove wp dashboard options tab
+add_filter('screen_options_show_screen', '__return_false');
+
+// Remove wp dashboard help tab
+add_action('admin_head', 'mytheme_remove_help_tabs');
+function mytheme_remove_help_tabs() {
+    get_current_screen()->remove_help_tabs();
+}
+```
+
+### Remove items from top menu bar
+
+```php
+// Remove items from wp-admin top bar
+add_action('wp_before_admin_bar_render', 'customize_admin_bar_items');
+function customize_admin_bar_items() {
+    global $wp_admin_bar;
+    $wp_admin_bar->remove_node('wp-logo'); // Remove WordPress logo
+    $wp_admin_bar->remove_node('comments'); // Remove Comments link
+    $wp_admin_bar->remove_node('new-content'); // Remove "+ New" link
+}
+```
+
+### Remove default items from the wp-admin side menu
+
+Below snippets are for what I’m removing but for a full list, please refer to the [WordPress documentation](https://developer.wordpress.org/reference/functions/remove_menu_page/).
+
+```php
+// Remove default admin menu items
+function remove_default_admin_menu_items() {
+    remove_menu_page('index.php'); // Dashboard
+    remove_menu_page('upload.php'); // Media
+    remove_menu_page('edit-comments.php'); // Comments
+    remove_menu_page('themes.php'); // Appearance
+    remove_menu_page('plugins.php'); // Plugins
+    remove_menu_page('users.php'); // Users
+    remove_menu_page('tools.php'); // Tools
+    remove_menu_page('options-general.php'); // Settings
+}
+add_action('admin_menu', 'remove_default_admin_menu_items');
+```
+
+### Remove custom items such as Bricks Builder, All In One WP Migration, and ACF from the wp-admin side menu
+
+```php
+// Remove custom Bricks menu
+add_action('admin_menu', function() {
+    remove_menu_page('bricks');
+    remove_menu_page('ai1wm_export');
+}, 12); // Bricks has a priority level of 11 so anything greater than that is required - shoutout to Emil Trägårdh for the reminder
+
+// Disable ACF in admin
+add_filter('acf/settings/show_admin', '__return_false');
+```
+
+### Create your own top-level menu in the wp-admin site menu
+
+Important thing to note here is that your top-level menu and the next direct child should have the same menu slug. If it does not, then WordPress will essentially create a child sub-menu item that is the same as the top-level menu item – this is so there is a “landing link”. Which is why I explicitly created a new sub-menu item with the same menu slug, but different name – so the user does not click on Settings and then see Settings again.
+
+```php
+add_action('admin_menu', 'register_custom_settings_menu');
+
+function register_custom_settings_menu() {
+    add_menu_page(
+        'Settings', // Page title
+        'Settings', // Menu title
+        'manage_options', // Capability
+        'bricks-settings', // Menu slug
+        '', // Callback function (removed)
+        '', // Icon (optional)
+        3 // Position
+    );
+
+    // Add sub-menu items
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Bricks', // Page title
+        'Bricks', // Menu title
+        'manage_options', // Capability
+        'bricks-settings' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Templates', // Page title
+        'Templates', // Menu title
+        'manage_options', // Capability
+        'edit.php?post_type=bricks_template' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Fonts', // Page title
+        'Fonts', // Menu title
+        'manage_options', // Capability
+        'edit.php?post_type=bricks_fonts' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Themes', // Page title
+        'Themes', // Menu title
+        'manage_options', // Capability
+        'themes.php' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Theme File Editor', // Page title
+        'Theme File Editor', // Menu title
+        'edit_theme_options', // Capability
+        'theme-editor.php' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'ACF', // Page title
+        'ACF', // Menu title
+        'manage_options', // Capability
+        'edit.php?post_type=acf-field-group' // Menu slug
+    );
+
+    // Additional sub-menu items
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Media', // Page title
+        'Media', // Menu title
+        'upload_files', // Capability
+        'upload.php' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Plugins', // Page title
+        'Plugins', // Menu title
+        'activate_plugins', // Capability
+        'plugins.php' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Users', // Page title
+        'Users', // Menu title
+        'list_users', // Capability
+        'users.php' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'General Settings', // Page title
+        'General Settings', // Menu title
+        'manage_options', // Capability
+        'options-general.php' // Menu slug
+    );
+
+        add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Set Homepage', // Page title
+        'Set Homepage', // Menu title
+        'manage_options', // Capability
+        'options-reading.php' // Menu slug
+    );
+
+     add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Permalinks', // Page title
+        'Permalinks', // Menu title
+        'manage_options', // Capability
+        'options-permalink.php' // Menu slug
+    );
+
+    // New submenu items
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Export Site', // Page title
+        'Export Site', // Menu title
+        'manage_options', // Capability
+        'admin.php?page=ai1wm_export' // Menu slug
+    );
+
+    add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Import Site', // Page title
+        'Import Site', // Menu title
+        'manage_options', // Capability
+        'admin.php?page=ai1wm_import' // Menu slug
+    );
+	
+	add_submenu_page(
+        'bricks-settings', // Parent slug
+        'Updates', // Page title
+        'Updates', // Menu title
+        'manage_options', // Capability
+        'update-core.php' // Menu slug
+    );
+	
+}
+```
+
+## Bonus snippets
+
+If you’re like me and need to quickly know the version of your current theme more than version of WordPress you are running, the snippets below will be more useful!
+
+### Bonus: Update wp-admin footer text with current active theme
+
+```php
+// Update wp-admin footer text with active theme name
+add_filter('admin_footer_text', 'update_admin_footer_text');
+function update_admin_footer_text() {
+    $theme = wp_get_theme(); // Get the current active theme
+    return sprintf('%s by %s', $theme->get('Name'), $theme->get('Author')); // Return theme name and author
+}
+```
+
+### Bonus: Update wp-admin footer version with current active theme version
+
+```php
+// Update wp-admin footer version
+add_filter('update_footer', 'update_admin_footer_version', 9999);
+function update_admin_footer_version($footer_text) {
+    $theme = wp_get_theme(); // Get the current active theme
+    $version = $theme->get('Version'); // Get the version number of the active theme
+    return sprintf('Version %s', $version); // Display only theme version in the footer text
+}
+```

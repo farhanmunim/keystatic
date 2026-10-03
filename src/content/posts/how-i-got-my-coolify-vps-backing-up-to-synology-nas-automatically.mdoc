@@ -1,0 +1,204 @@
+---
+title: "How I got my Coolify VPS backing up to Synology NAS automatically"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "I wanted a simple, reliable way to back up everything on my Coolify server – config, projects, Docker volumes, WordPress files – to my Synology NAS every night. No exposed ports. No external services. Just a secure, private connection."
+date: 2026-05-01T23:15
+featured: false
+categories:
+  - "technical"
+tags:
+  - "coolify"
+  - "vps"
+---
+
+## What I used
+
+- A Hetzner VPS running Coolify
+- A Synology NAS
+- Tailscale installed on both devices (same account)
+
+## Step 1: Get Tailscale IPs
+
+First, I made sure both devices were connected under the same Tailscale account.
+
+Then I grabbed the VPS Tailscale IP (it looks like `100.x.x.x`).
+
+## Step 2: Creating a shared folder on Synology
+
+In DSM, I created a new shared folder:
+
+- Control Panel → Shared Folder → Create
+- Name: `Coolify-Backup`
+
+## Step 3: Enabling SSH on Synology
+
+In DSM:
+
+- Control Panel → Terminal & SNMP
+- Enabled SSH service
+
+## Step 4: Setting up passwordless SSH
+
+From the Coolify terminal, I generated an SSH key and copied it to the NAS:
+
+```
+ssh-keygen -t ed25519 -f ~/.ssh/nas_push -N ""ssh-copy-id -i ~/.ssh/nas_push.pub YOUR-SYNOLOGY-USERNAME@YOUR-NAS-TAILSCALE-IP
+```
+
+To confirm it worked, I ran:
+
+```
+ssh -i ~/.ssh/nas_push YOUR-SYNOLOGY-USERNAME@YOUR-NAS-TAILSCALE-IP "echo works"
+```
+
+That returned `works` without asking for a password, which confirmed everything was set up correctly.
+
+## Step 5: Locking down SSH with Hetzner firewall
+
+In the Hetzner Cloud firewall, I added an inbound rule:
+
+- Source: `100.x.x.x`/x
+- Protocol: TCP
+- Port: 22
+
+This ensures SSH access is limited to the Tailscale network only.
+
+## Step 6: Creating the backup script
+
+On the server, I created a daily backup script:
+
+```
+nano /etc/cron.daily/coolify-backup
+```
+
+```
+#!/bin/bash# Coolify configrsync -avz -e "ssh -i /root/.ssh/nas_push" \/data/coolify/ \YOUR-SYNOLOGY-USERNAME@YOUR-NAS-TAILSCALE-IP:/volume1/Coolify-Backup/# Docker volumesrsync -avz -e "ssh -i /root/.ssh/nas_push" \/var/lib/docker/volumes/ \YOUR-SYNOLOGY-USERNAME@YOUR-NAS-TAILSCALE-IP:/volume1/Coolify-Backup/docker-volumes/
+```
+
+Then I made it executable:
+
+```
+chmod +x /etc/cron.daily/coolify-backup
+```
+
+## Step 7: Scheduling it
+
+I added a cron job to run it at 4am:
+
+```
+crontab -e
+```
+
+```
+0 4 * * * /etc/cron.daily/coolify-backup
+```
+
+I chose 4am to avoid overlap with NAS maintenance.
+
+## Step 8: Testing the backup
+
+Before relying on it, I ran the script manually:
+
+```
+/etc/cron.daily/coolify-backup
+```
+
+I could see files transferring, and everything appeared in the `Coolify-Backup` folder on the NAS.
+
+## Important things I saved
+
+There are two things I made sure to store safely:
+
+- The Coolify `APP_KEY` `cat /data/coolify/source/.env | grep APP_KEY`
+- The SSH key used for backups (`/root/.ssh/nas_push`)
+
+The APP\_KEY is especially important — without it, restoring data isn’t possible.
+
+## How it works
+
+```
+Coolify → Tailscale → SSH → rsync → Synology
+```
+
+- Runs every night at 4am
+- Only transfers changed files after the first run
+- Keeps a full copy on the NAS
+- No public exposure
+- No ongoing cost
+
+## 🚨 Restoring after a failure
+
+If I needed to rebuild the server, this is the process I followed.
+
+### 1. Create a new VPS
+
+I spun up a fresh server (Ubuntu 24).
+
+### 2. Install Coolify
+
+```
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+### 3. Install Tailscale
+
+```
+curl -fsSL https://tailscale.com/install.sh | shtailscale up
+```
+
+### 4. Restore data from the NAS
+
+```
+rsync -avz -e "ssh" \/volume1/Coolify-Backup/ \root@NEW-SERVER-IP:/data/coolify/
+```
+
+### 5. Restore docker volumes
+
+```
+rsync -avz -e "ssh" \/volume1/Coolify-Backup/docker-volumes/ \root@NEW-SERVER-IP:/var/lib/docker/volumes/
+```
+
+### 6. Restore the APP\_KEY
+
+```
+nano /data/coolify/source/.env
+```
+
+I replaced the `APP_KEY` value with the saved one.
+
+### 7. Restore the database
+
+```
+cat /data/coolify/backups/coolify-db-*.sql | docker exec -i coolify-db \pg_restore --verbose --clean --no-acl --no-owner -U coolify -d coolify
+```
+
+### 8. Restart Coolify
+
+```
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+### 9. Verify everything
+
+I accessed the dashboard and confirmed all projects, services, and settings were intact.
+
+### 10. Re-enable backups
+
+Finally, I set the backup script up again on the new server.
+
+## Troubleshooting
+
+When things didn’t work, these were the first checks:
+
+- Tailscale connected on both devices
+- SSH accessible over Tailscale
+- Hetzner firewall rule in place (`100.x.x.x/x`)
+- SSH enabled on Synology
+
+Manual test:
+
+```
+/etc/cron.daily/coolify-backup
+```

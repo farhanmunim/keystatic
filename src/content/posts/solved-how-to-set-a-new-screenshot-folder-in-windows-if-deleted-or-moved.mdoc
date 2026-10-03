@@ -1,0 +1,29 @@
+---
+title: "Solved: How to set a new Screenshot folder in Windows if deleted or moved"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Accidentally deleted or moved your Windows Screenshots folder and now can’t automatically save screenshots? Here’s a great fix!"
+date: 2024-07-25T18:15
+featured: false
+categories:
+  - "technical"
+tags:
+  - "tech-troubleshooting"
+---
+
+1. Go to your `Pictures` folder and create a new folder called `Screenshots`
+2. Click `Start` / `Windows`, search for and open `regedit` (also known as Registry Editor)
+3. Copy and paste the snippet below into the search bar of the registry editor and press enter:
+   ```php
+   HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders
+   ```
+4. Now search for the following on the right (should be somewhere near the top of the list) and double click on it:
+   ```php
+   {B7BEDE81-DF94-4682-A7D8-57A52620B86F}
+   ```
+5. Under the `Value data` field, enter the following and then click `OK`:
+   ```php
+   %USERPROFILE%\Pictures\Screenshots
+   ```
+6. Now restart your system and you are done!

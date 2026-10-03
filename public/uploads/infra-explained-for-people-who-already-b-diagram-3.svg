@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" viewBox="0 0 560 250" role="img" aria-label="Layer diagram: each virtual machine carries its own guest operating system on top of a hypervisor, while containers share the host operating system's kernel through a container runtime" style="display:block;width:100%;max-width:560px;height:auto;margin:0 auto">
+<text x="145" y="20" text-anchor="middle" class="t-head" fill="#475569" font-size="12" font-weight="600">Virtual machines</text>
+<text x="415" y="20" text-anchor="middle" class="t-head" fill="#475569" font-size="12" font-weight="600">Containers</text>
+<rect class="box" x="20" y="32" width="120" height="120" rx="6" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="80" y="80" text-anchor="middle" fill="#475569" font-size="12">App</text>
+<text x="80" y="134" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">Guest OS (its own)</text>
+<rect class="box" x="150" y="32" width="120" height="120" rx="6" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="210" y="80" text-anchor="middle" fill="#475569" font-size="12">App</text>
+<text x="210" y="134" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">Guest OS (its own)</text>
+<rect class="box" x="20" y="160" width="250" height="34" rx="6" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="145" y="181" text-anchor="middle" fill="#475569" font-size="12">Hypervisor</text>
+<rect class="box" x="20" y="202" width="250" height="34" rx="6" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="145" y="223" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">Physical hardware</text>
+<rect class="box-accent" x="290" y="92" width="120" height="60" rx="6" fill="#2563eb" fill-opacity=".1" stroke="#2563eb"></rect>
+<text x="350" y="127" text-anchor="middle" fill="#475569" font-size="12">App</text>
+<rect class="box-accent" x="420" y="92" width="120" height="60" rx="6" fill="#2563eb" fill-opacity=".1" stroke="#2563eb"></rect>
+<text x="480" y="127" text-anchor="middle" fill="#475569" font-size="12">App</text>
+<rect class="box" x="290" y="160" width="250" height="34" rx="6" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="415" y="181" text-anchor="middle" fill="#475569" font-size="12">Container runtime (Docker)</text>
+<rect class="box" x="290" y="202" width="250" height="34" rx="6" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="415" y="223" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">Host OS on the hardware — one shared kernel</text>
+</svg>

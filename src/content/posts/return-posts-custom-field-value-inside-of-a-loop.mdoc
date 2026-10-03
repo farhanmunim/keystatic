@@ -1,0 +1,37 @@
+---
+title: "Return post’s custom field value inside of a loop"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Have you wanted to output the value of a post’s custom field from the back-end into the front-end, such as an an SVG code or a URL? Here’s how!"
+date: 2024-06-03T20:54
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+Inside of a repeater element or query loop, copy and paste the snippet below into a code block. Update `my-field` with the name of your custom field.
+
+```php
+<?php
+// Define your field name
+$custom_field_name = 'my-field';
+
+// Make sure you are inside the WordPress loop (e.g., in a template file like single.php or archive.php).
+
+// Get the ID of the current post (inside the loop, this will be automatically set).
+$post_id = get_the_ID();
+
+// Get the value of the custom field using the variable for the custom field name.
+$custom_field_value = get_post_meta($post_id, $custom_field_name, true);
+
+// Check if the custom field value exists and is not empty before echoing.
+if (!empty($custom_field_value)) {
+    echo $custom_field_value;
+} else {
+    echo 'No custom field value found.';
+}
+?>
+```

@@ -1,0 +1,88 @@
+---
+title: "How to get your Siteground email account working with Cloudflare domain"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Here’s a quick guide on how to make sure you can send and receive emails from your new custom email address created with Siteground and Cloudflare domain."
+date: 2024-07-17T14:00
+featured: false
+categories:
+  - "technical"
+tags:
+  - "email"
+---
+
+> **Warning:** The best solution is to use a dedicated email service. However, most beginners will use the email service provided with their shared hosting – this post is directed more for them. To follow the steps, you need to set up your Siteground email address and Cloudflare access before proceeding.
+
+## Basic Steps
+
+### DMARC
+
+DMARC is a protocol that ensures email authentication by aligning SPF and DKIM mechanisms to protect against email spoofing and phishing. Google and Yahoo announced requirements that bulk senders must have DMARC in place beginning February 2024. To do this:
+
+1. Log into your [Cloudflare dash](https://dash.cloudflare.com/)
+2. Navigate to your website \> DNS \> Records \> `Add record`
+3. In the new record:
+   - Select `TXT` type
+   - Set the name as `_dmarc`
+   - Set TTL as `auto`
+   - Enter the following in content, remember to update the snippet with your custom email address in both places, and then save:
+
+```php
+v=DMARC1; p=reject; rua=mailto:no-reply@farhan.app; ruf=mailto:no-reply@farhan.app; sp=reject; aspf=r;
+```
+
+### SPF
+
+SPF is a protocol that specifies which mail servers are allowed to send emails on behalf of your domain, preventing unauthorized sources from sending fraudulent emails. Google and Yahoo’s new sender requirements say that all senders must use SPF and DKIM authentication.
+
+This should automatically be set up in [Cloudflare dash](https://dash.cloudflare.com/) \> your website \> DNS \> Records and you can see if Siteground has picked it up via [Site Tools](https://tools.siteground.com/) \> Email \> Authentication \> SPF.
+
+If this is not set up, you can get the recommended SPF record from [Siteground Site Tools](https://tools.siteground.com/) \> Email \> Authentication \> SPF and then create a record in your [Cloudflare](https://dash.cloudflare.com/) DNS settings:
+
+1. Select `TXT` type
+2. Set the name as `yourdomain.com`
+3. Set TTL as `auto`
+4. Enter the recommended SPF record from Siteground in the content field and then save – mine looks like this
+
+```
+v=spf1 +a +mx include:_1374fe4d82945c57b3f1f55f263a55745.spf.dnssmarthost.net ~all
+```
+
+## DKIM
+
+DKIM is a method for email authentication that allows the recipient to verify that an email was sent by an authorized mail server and that it hasn’t been altered during transit. As mentioned before, Google and Yahoo’s new sender requirements say that all senders must use SPF and DKIM authentication. To do this:
+
+This should automatically be set up in Cloudflare dash \> your website \> DNS \> Records and you can see if Siteground has picked it up via Site Tools \> Email \> Authentication \> DKIM.
+
+If this is not set up, you can get the recommended DKIM record from [Siteground Site Tools](https://tools.siteground.com/) \> Email \> Authentication \> DKIM and then create a record in your [Cloudflare](https://dash.cloudflare.com/) DNS settings:
+
+1. Select `TXT` type
+2. Set the name as `default._domainkey`
+3. Set TTL as `auto`
+4. Enter the recommended DKIM record from Siteground in the content field and then save – mine looks like this:
+
+```
+"v=DKIM1;k=rsa;p=1MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDYfVGUQt5EO9hRxJXN+RLInmAazBS1a394UMUAZg8WFemNNvBm/dGONxcop8hxiYOrqjLUTGXlyBKx4MWol9FanubRj8QRXAtgMooZV4i2bWq8tgV5NE+Th4R28Ir4moWgTYq8hnME+Svu/faILNMlwxya+etSs94EcRsvJY3SdQIDAQAB"
+```
+
+To check if the above steps have been carried out correctly, you can enter your domain in the free [DMARC Domain Checker web tool](https://dmarcian.com/domain-checker/).
+
+## Critical Steps
+
+1. In your [Cloudflare](https://dash.cloudflare.com/) DNS settings, create a new `CNAME` record
+   - Set the name as `mail`
+   - Set the proxy status as `DNS only`
+   - Set the target as your mail server (Siteground provides this when you create your email account) – in my case it is `gukm12589.siteground.biz`
+   - Set TTL as `auto`
+2. In the same area, create a new `MX` record
+   - Set the name as `yourdomain.com`
+   - Set the target as your mail server (Siteground provides this when you create your custom email address) – in my case it is `gukm12589.siteground.biz`
+   - Set the proxy status as `DNS only` with `priority 10`
+   - Set TTL as `auto`
+
+## Bonus Step
+
+Assuming you want forms and WordPress emails to also use your custom email address, in your WordPress install, download and set up the [WP Mail SMTP plugin](https://wordpress.org/plugins/wp-mail-smtp/) and use your email account parameters from [Siteground Site Tools](https://tools.siteground.com/).
+
+If you followed all of the above steps, you should be able to send and receive emails from your custom email address!

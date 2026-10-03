@@ -31,6 +31,8 @@ Keystatic (/keystatic) ──commits──▶ GitHub repo ──build──▶ C
 | `src/layouts/Layout.astro` | Site shell: head metadata, script injection, nav, footer |
 | `src/lib/content.ts` | Small helpers around `getCollection`/`getEntry` (lookups, sorting) |
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how everything fits together (hosting, Workers, GitHub App sign-in).
+
 The site is fully static. The Cloudflare adapter only serves Keystatic's admin UI
 (`/keystatic`) and its `/api/keystatic` routes; `/admin` redirects to `/keystatic`.
 
@@ -99,6 +101,23 @@ See `keystatic.config.ts` for the full field list. Highlights:
 * **Settings** – the Site Settings singleton holds site name, tagline, meta description, logo,
   favicon, share image, footer text, social links, analytics dashboard link and raw HTML
   injected into the head and footer of every page.
+
+## Search engines
+
+Site Settings has a **Hide this site from search engines** switch (on by default for this site).
+It adds a `noindex` meta tag to every page and makes `/robots.txt` disallow all crawlers. Turn it
+off at launch; the change applies after the next deploy.
+
+## Importing from WordPress
+
+`scripts/import-wordpress.py` seeds all content (posts, projects, services, resources,
+categories, tags, author, social links, media) from a headless WordPress REST API. See
+ARCHITECTURE.md for the mapping.
+
+```sh
+pip install beautifulsoup4
+python3 scripts/import-wordpress.py https://cms.farhan.app
+```
 
 ## Differences from the CMS blueprint
 

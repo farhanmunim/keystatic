@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif" viewBox="0 0 560 190" role="img" aria-label="Diagram: visitors reach a reverse proxy, which reads the hostname and forwards each request to the matching app" style="display:block;width:100%;max-width:560px;height:auto;margin:0 auto">
+<defs><marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569" fill-opacity=".55"></path></marker></defs>
+<rect class="box" x="20" y="75" width="100" height="40" rx="8" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="70" y="99" text-anchor="middle" fill="#475569" font-size="12">Visitors</text>
+<rect class="box-accent" x="185" y="65" width="145" height="60" rx="8" fill="#2563eb" fill-opacity=".1" stroke="#2563eb"></rect>
+<text x="257" y="90" text-anchor="middle" fill="#475569" font-size="12">Reverse proxy</text>
+<text x="257" y="107" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">reads the hostname</text>
+<rect class="box" x="400" y="20" width="140" height="38" rx="8" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="470" y="37" text-anchor="middle" fill="#475569" font-size="12">Umami</text>
+<text x="470" y="51" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">mochi.farhan.app</text>
+<rect class="box" x="400" y="76" width="140" height="38" rx="8" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="470" y="93" text-anchor="middle" fill="#475569" font-size="12">Uptime Kuma</text>
+<text x="470" y="107" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">uptime.farhan.app</text>
+<rect class="box" x="400" y="132" width="140" height="38" rx="8" fill="#475569" fill-opacity=".05" stroke="#475569" stroke-opacity=".28"></rect>
+<text x="470" y="149" text-anchor="middle" fill="#475569" font-size="12">WordPress</text>
+<text x="470" y="163" text-anchor="middle" class="t-muted" fill="#475569" font-size="11" fill-opacity=".65">cms.farhan.app</text>
+<line class="arrow" x1="125" y1="95" x2="178" y2="95" marker-end="url(#arrC)" stroke="#475569" stroke-opacity=".55" fill="none" stroke-width="1.5"></line>
+<line class="arrow" x1="335" y1="80" x2="393" y2="42" marker-end="url(#arrC)" stroke="#475569" stroke-opacity=".55" fill="none" stroke-width="1.5"></line>
+<line class="arrow" x1="335" y1="95" x2="393" y2="95" marker-end="url(#arrC)" stroke="#475569" stroke-opacity=".55" fill="none" stroke-width="1.5"></line>
+<line class="arrow" x1="335" y1="110" x2="393" y2="148" marker-end="url(#arrC)" stroke="#475569" stroke-opacity=".55" fill="none" stroke-width="1.5"></line>
+</svg>

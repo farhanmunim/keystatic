@@ -1,0 +1,186 @@
+---
+title: "Uptime Robot + WordPress"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Here’s how I integrated Uptime Robot API with WordPress to automate website uptime monitoring, achieve unlimited data retention, and display statuses effortlessly."
+date: 2024-12-17T10:04
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+[~~Live site unavailable~~](/)
+
+## Why use Uptime Robot for monitoring websites in WordPress?
+
+Monitoring our website’s uptime is essential to ensure its reliability, especially for critical systems. In this post, we’ll see how I use the [Uptime Robot](https://uptimerobot.com/?red=farhand8524b) API—a popular and robust third-party tool—to automate uptime tracking directly in WordPress.
+
+## Why Uptime Robot?
+
+We chose Uptime Robot because:
+
+1. Popular and robust: Uptime Robot has a proven track record of reliability. It’s trusted by thousands of users worldwide and simply works.
+2. Third-party reliability: Using a third-party tool ensures that even if our systems are down, we can still monitor and access the status page.
+3. Why not self-host? While tools like [Uptime Kuma](https://github.com/louislam/uptime-kuma/wiki) are great alternatives, self-hosted solutions could fail alongside our systems, leaving us unable to track status when we need it most.
+4. Notifications: We can trigger instant notifications like an email when our site is down!
+5. Free Tier and API: Uptime Robot’s free tier offers generous features, including an API that we leverage here. The API is read-only, so there are no security concerns about unwanted modifications.
+
+## Data retention
+
+By default, Uptime Robot’s free tier retains uptime history for 90 days. However, by using this WordPress solution:
+
+- We will use posts as data storage: Each day’s uptime data is saved as a new WordPress post, allowing unlimited retention (or as much as our hosting storage permits).
+- We control our data, and it’s always available for reference.
+
+## Using WordPress posts instead of a custom post type
+
+Why store uptime data in standard posts?
+
+- This solution is designed for a dedicated status site (e.g., `status.oursite.com`) that has no other content.
+- Posts provide a simple and effective structure to display uptime information dynamically without the overhead of custom post types.
+
+## How it works
+
+1. Fetches site status and 24-hour uptime percentage every 5 minutes using WP-Cron.
+2. Each day, a new post is created with:
+   - Title: Current date in `dd-mm-yyyy` format.
+   - Tags: Status values like success, outage, or unknown.
+   - Custom Field: Uptime percentage for the last “day”.
+3. Uptime Robot status returned value –\> stored status
+   - `2` = `success`
+   - `8` and `9` = `outage`
+   - `0` and `1` = `unknown`
+4. Unlimited Data Retention:
+   - Posts ensure our uptime data remains stored indefinitely without expiration
+
+## TLDR – the code
+
+Below is an extract of the custom plugin I created:
+
+```php
+// Schedule the cron job when the plugin is activated
+register_activation_hook(__FILE__, function() {
+    // Schedule the 'check_uptime_status' event to run every 5 minutes if not already scheduled
+    if (!wp_next_scheduled('check_uptime_status')) {
+        wp_schedule_event(time(), 'five_minutes', 'check_uptime_status');
+    }
+});
+
+// Clear the cron job when the plugin is deactivated
+register_deactivation_hook(__FILE__, function() {
+    // Remove the scheduled 'check_uptime_status' event
+    wp_clear_scheduled_hook('check_uptime_status');
+});
+
+// Add a custom cron interval for 5 minutes
+add_filter('cron_schedules', function($schedules) {
+    // Define a new schedule 'five_minutes' with an interval of 300 seconds (5 minutes)
+    $schedules['five_minutes'] = [
+        'interval' => 300, // 5 minutes
+        'display'  => __('Every 5 Minutes', 'uptime-robot-connector')
+    ];
+    return $schedules;
+});
+
+// Main function to check the uptime status and update WordPress posts
+add_action('check_uptime_status', function() {
+    $api_key = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'; // Uptime Robot API key
+    $uptime_url = "https://api.uptimerobot.com/v2/getMonitors"; // Uptime Robot API endpoint
+
+    // Make an API request to UptimeRobot to fetch monitor data with a 30-second timeout
+    $response = wp_remote_post($uptime_url, [
+        'timeout' => 30, // API request timeout
+        'body' => [
+            'api_key' => $api_key,
+            'format'  => 'json',
+            'custom_uptime_ratios' => '1' // Request uptime percentage for the last day
+        ]
+    ]);
+
+    // Check for API errors or invalid responses
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        error_log('Uptime Robot API error: ' . print_r($response, true)); // Log the error
+        return; // Exit the function if there's an error
+    }
+
+    // Decode the API response into a PHP array
+    $data = json_decode(wp_remote_retrieve_body($response), true);
+
+    // Check if the response contains valid monitor data
+    if (empty($data['monitors']) || !isset($data['monitors'][0]['custom_uptime_ratio'])) {
+        error_log('Uptime Robot API returned invalid data: ' . print_r($data, true)); // Log invalid data
+        return; // Exit the function if data is invalid
+    }
+
+    // Retrieve the site status from the API response
+    $site_status = $data['monitors'][0]['status'];
+
+    // Map the Uptime Robot status to custom labels
+    $status_label = match ($site_status) {
+        2 => 'success',   // Site is up
+        9 => 'outage',    // Site is down
+        8 => 'incident',  // Site seems down (store as "incident")
+        0 => 'unknown',   // Site is paused (store as "unknown")
+        1 => 'unknown',   // Site is not checked yet (store as "unknown")
+        default => 'unknown' // Default to "unknown"
+    };
+
+    // Retrieve the uptime percentage for the last day
+    $uptime_percentage = (float) $data['monitors'][0]['custom_uptime_ratio'];
+
+    // Generate today's date in 'dd-mm-yyyy' format
+    $today = date('d-m-Y');
+
+    // Check if a WordPress post with today's date as the title already exists
+    $existing_post = get_page_by_title($today, OBJECT, 'post');
+
+    if (!$existing_post) {
+        // Create a new post if it doesn't exist
+        $post_id = wp_insert_post([
+            'post_title'   => sanitize_text_field($today), // Set the post title to today's date
+            'post_content' => '', // Leave post content empty
+            'post_status'  => 'publish', // Set post status to 'publish'
+            'post_author'  => 1, // Replace with the desired author ID
+            'tags_input'   => [sanitize_text_field($status_label)], // Add the status as a tag
+        ]);
+
+        // Add the uptime percentage as a custom field if the post was created successfully
+        if ($post_id) {
+            add_post_meta($post_id, 'uptime_percentage', $uptime_percentage);
+        }
+    } else {
+        // If the post already exists, update its tags and uptime percentage
+        $post_id = $existing_post->ID;
+
+        // Update the post's tags with the new status label
+        wp_set_post_tags($post_id, [sanitize_text_field($status_label)], false);
+
+        // Check if the 'uptime_percentage' custom field exists; if not, create it
+        if (!get_post_meta($post_id, 'uptime_percentage', true)) {
+            add_post_meta($post_id, 'uptime_percentage', $uptime_percentage);
+        } else {
+            // Update the existing 'uptime_percentage' custom field
+            update_post_meta($post_id, 'uptime_percentage', $uptime_percentage);
+        }
+    }
+
+    // Calculate the previous scheduled time for the cron job (5 minutes ago)
+    $previous_scheduled_time = wp_next_scheduled('check_uptime_status') - 300; // Subtract 5 minutes
+
+    // Update the post's modified date to match the previous scheduled time
+    global $wpdb;
+    $wpdb->update(
+        $wpdb->posts, // WordPress posts table
+        [
+            'post_modified' => date('Y-m-d H:i:s', $previous_scheduled_time), // Local modified time
+            'post_modified_gmt' => gmdate('Y-m-d H:i:s', $previous_scheduled_time) // GMT modified time
+        ],
+        ['ID' => $post_id], // Target the specific post ID
+        ['%s', '%s'], // Data types for the values
+        ['%d'] // Data type for the where clause
+    );
+});
+```

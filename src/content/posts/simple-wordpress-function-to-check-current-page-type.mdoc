@@ -1,0 +1,35 @@
+---
+title: "Simple WordPress function to check current “page” type"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "If you need a way to check the current page type to set some conditional functionality (such as using Bricks Builder Conditions), here’s a useful snippet!"
+date: 2024-02-16T01:22
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+```php
+<?php
+function current_page_type() {
+    if (is_category()) {
+        return 'category';
+    } elseif (is_tag()) {
+        return 'tag';
+    } elseif (is_404()) {
+        return '404';
+    } elseif (is_post_type_archive()) {
+        return 'archive';
+    } elseif (is_page()) {
+        return 'page';
+    } else {
+        return 0;
+    }
+}
+?>
+```
+
+You can of course adjust the above code to echo the results when you call the function.

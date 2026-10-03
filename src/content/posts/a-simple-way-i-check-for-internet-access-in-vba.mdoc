@@ -1,0 +1,80 @@
+---
+title: "A simple way I check for internet access in VBA"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Every now and then, I need to know whether a machine actually has internet access before doing anything else. Usually that’s before calling an API, syncing data, or pulling something external that would otherwise just… hang. There are a few ways to approach this, but I tend to keep it very simple."
+date: 2026-01-05T11:24
+featured: false
+categories:
+  - "technical"
+tags:
+  - "excel"
+  - "vba"
+---
+
+## The idea
+
+Instead of trying to detect network adapters or DNS settings, I just make a real HTTP request and see if it works.
+
+If a request succeeds, the internet is probably there.  
+If it doesn’t, it probably isn’t – or at least not in a usable way.
+
+That’s usually good enough.
+
+## The function
+
+This is what I use. It’s basic on purpose.
+
+```vba
+Function HasInternetConnection() As Boolean
+    Dim http As Object
+
+    On Error Resume Next
+    Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+
+    http.Open "GET", "https://www.microsoft.com", False
+    http.SetTimeouts 5000, 5000, 5000, 5000
+    http.Send
+
+    HasInternetConnection = (Err.Number = 0 And http.Status = 200)
+
+    On Error GoTo 0
+End Function
+```
+
+And then wherever I need it:
+
+```vba
+If HasInternetConnection Then
+    ' carry on
+Else
+    ' fail early, show a message, skip sync, etc.
+End If
+```
+
+## Why this works
+
+- It makes a **real outbound request**, not a guess
+- `WinHttpRequest` is available on most Windows machines
+- A `200` status tells you the request actually completed successfully
+- Timeouts stop Excel from freezing if the connection is dead
+
+It’s not trying to be clever. It just asks a simple question and moves on.
+
+## When I use this
+
+- Before API calls
+- Before background syncs
+- In startup checks where I want to fail early
+- Anywhere a silent failure would be worse than a clean stop
+
+If the internet drops five seconds later, that’s a different problem. This just answers *“can I reach the outside world right now?”*
+
+## A couple of notes
+
+- You can swap the URL for anything reliable you trust
+- If you’re behind a proxy-heavy corporate network, results may vary
+- This checks **connectivity**, not quality or speed
+
+That’s fine for most Excel-based workflows.

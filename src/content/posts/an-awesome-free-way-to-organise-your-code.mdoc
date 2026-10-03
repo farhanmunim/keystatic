@@ -1,0 +1,112 @@
+---
+title: "An awesome (free) way to organise your code!"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Wondered how to organise your CSS easily and other custom code without using a paid code editor plugin or any plugin at all? Well, here’s a great, free way you can!"
+date: 2024-03-05T20:39
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+> **Warning:** This method suits my workflow but you may prefer a plugin solution like WPCodebox!
+
+## Why did I go down this route?
+
+### Buggy builder (sorry)
+
+Don’t get me wrong, I absolutely love Bricks. However, since the last 3 updates, the styles panel in Bricks has proved to not work as intended. Many users, as well as myself, have reported issues with basic styles not getting applied despite having no caching or conflicting code/plugins etc. In addition, there are default stylings on some elements that you cannot override using the styles panel – I ended up using a significant amount of custom CSS.
+
+### Organisation
+
+As aforementioned, since I have been writing a lot more custom CSS, and I even started dabbling with JS libraries to enable extra functionality, I found the code writing experience in Bricks, whilst perfectly adequate, not the best to quickly find and update snippets. There is a new-ish ability to update stylings via the `%root%` selector within elements itself, however at the time of writing this post, is quite buggy in my experience.
+
+### Free!
+
+As with many tech solutions, everything seemed to be moving towards a subscription model and I did not want to use a subscription-based paid solution just to organise some code when I can do it myself using my code editor of choice – which is what I prefer anyways.
+
+> **Warning:** There are AMAZING paid solutions such as WPCodebox. Most people will go down this route and I don’t blame you!
+
+## Requirements
+
+Here are the tools I use:
+
+- [Bricks Child theme](https://my.bricksbuilder.io/)
+- [FileZilla Client FTP (Windows)](https://filezilla-project.org/download.php?platform=win64)
+- [Visual Studio Code (VS Code)](https://code.visualstudio.com/)
+- [VS Code Live Sass Compiler extension](https://marketplace.visualstudio.com/items?itemName=glenn2223.live-sass)
+
+Whilst I am using [Bricks Builder](https://bricksbuilder.io/) and have categorised this post as a Bricks post, you can actually use any builder + subsequent child theme.
+
+> **Warning:** I am only going to use SASS to consolidate my organised CSS together, and nothing more. SASS is extremely powerful and I highly recommend learning more about it.
+
+## Child Theme
+
+I will assume you know what a child theme is, but if not. In essence, it is a supplementary theme to your main theme, in my case Bricks. You can add custom code (not just CSS) as required, and if you ever update Bricks to subsequent versions, your custom code will stay intact within the child theme.
+
+Fortunately, Bricks already provides a basic child theme in the [Bricks account dashboard](https://my.bricksbuilder.io/). Whilst I made my own, you can follow along using theirs.
+
+Installing a child theme is the same as installing any other. Go to wp-admin \> Appearance \> Themes \> ensure your main theme is installed and active first \> Add new theme \> Upload Theme \> select the zipped child theme \> Activate – it really is that simple!
+
+## FTP
+
+FTP is a method of connecting to your server files from your machine.
+
+> **Warning:** You may want to consider using SFTP!
+
+### Creating an FTP account in your server
+
+I won’t go too indepth with creating and setting up your FTP as the UI varies from provider to provider. However, generally, they have similar steps. Go to the back-end / control panel of your hosting provider, and click the FTP option. If you’ve never used this before, you may be asked to set up a username, password, transfer quota, and select the domain (if you have multiple). You will now need the following for your next step:
+
+- Username
+- Password
+- FTP Host
+- Port
+
+### Setting up FTP on your computer
+
+You can use any FTP software but I will use [FileZilla Client FTP (Windows)](https://filezilla-project.org/download.php?platform=win64). This is a free and highly used tool for Windows machines but you may use any to your liking. Once you install your software of choice, you now connect to your server using the details you saved in the previous step. You should now see your web files – the child theme is generally stored in yourrootdirectory / domain / public\_html / wp-content / themes / Bricks child theme. For this post, I will show you how I organise my CSS, so that is the file which I will reference.
+
+FileZilla allows you to mirror a local directory with the server directory so you can simultaneously view both directories, make changes, and essentially save it in the other directory. I won’t be using this feature as I want to control which files get pushed to my server – especially since I will be EXCLUDING the SASS files from uploading (more on this later).
+
+For now, I will drag all of my web files into my chosen local directory so I can edit the files in my local directory and not live on my server. Each file I am happy with, I will manually send to update in the server (this can be done automatically with FileZilla).
+
+## VS Code
+
+I will assume you have VS Code but if not, TLDR: it is one of the most used, powerful code editor which is the editor of choice for most devs, and owned by Microsoft – you can download it for free here!
+
+### Extension
+
+Assuming you have set up VS Code, now we want to install the SASS extension which will monitor or “watch” the SCSS code and compile it into CSS. Click Extenions on the left pane and search for “Live Sass Compiler” – you want to install version published by Glenn Marks. That’s it with the extension, it is ready to use with no other setup required.
+
+### Setting up your file structure
+
+Go to File \> Open Folder \> locate your local directory where you copied your server files to. This is where you can get creative with your file structure apart from your main CSS file. I recommend doing the following:
+
+1. Create a folder for your SCSS partials (i.e. the chunks of code you want to split up and organise)
+2. Now create your SCSS partial (chunks of code) as required but note each SCSS partial needs to have an underscore (“\_”) before the name to indicate its a partial and the file extension is `.scss`
+3. Within the same SASS folder, create a file callled `_index.scss` – this is where all of the individual partials will be linked to as an `@forward` rule  
+   Disclaimer: The order of the rules are important. For example, as you will notice, my root rule is above my components rule – this is because my root rule needs to be executed first as it contains all of my variables – which my components are dependent on.
+4. Now back to your root folder where the `style.css` is, copy the default comments on the top (these are [mandatory for the child theme](https://developer.wordpress.org/themes/advanced-topics/child-themes/)), create a new file called `style.scss` and paste the comments on the top and delete the `style.css` file
+5. In the `style.scss` file, add the rule: `@use "sass"` – this is referencing the folder where the partials are stored in and will automatically look for the `_index.scss` file
+6. On the bottom right of VS Code, you will see an option which says “Watch Sass” – click this now – congrts, this is now compiling your SCSS into CSS!
+
+If you followed the above steps correctly, you should notice a `style.css` file got generated automatically and a file calleed `styles.map`. We only care about the first one – this is the only file which we will upload to server, replacing the one already there.
+
+Disclaimer: WordPress child theme’s have strict dependencies, one of them is a single `style.css` file at the root level. To learn more, check out their documentation.
+
+## Transferring your code to the server
+
+From here onwards, the setup is done, we can now write spend our time writing and organising our code but we need to remember the following steps before we transfer our new code to the server:
+
+1. Update the SCSS partials as required with our desired styling
+2. Go to the `style.scss` file and make sure your code is being “Watched”, you can just press save and it will compile the code into 1 single `style.css` file
+3. Go back to the FTP tool, and transfer the generated CSS file to the server – this process can be automated but I prefer manually transferring to the server
+4. That’s it!
+
+## Conclusion
+
+Once you are done with the setup, this is an amazing way to organise all of your CSS into individual files of smaller chunks of code, and then have VS Code compile it for you into a single CSS file. Plus you get the added benefit of working in a powerful code editor. The setup does take about 5 minutes, but after this, you are good to go!

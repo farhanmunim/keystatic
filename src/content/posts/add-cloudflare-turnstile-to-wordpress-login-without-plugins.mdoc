@@ -1,0 +1,121 @@
+---
+title: "Add Cloudflare Turnstile to WordPress login without plugins"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Looking to enhance your WordPress login, registration, and password recovery pages with Cloudflare’s Turnstile CAPTCHA to combat spam? Here’s a straightforward way to do it using a simple code snippet!"
+date: 2024-07-27T19:13
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+> **Warning:** You might want to customize your WordPress login page or create a custom login form for enhanced security and branding. If you already do, this solution probably isn’t for you. Whilst this method does hook into the standard WordPress authentication, custom login flows may not work.
+
+## Why use Turnstile?
+
+- Integrated with Cloudflare: If you’re already using Cloudflare, Turnstile is a convenient and free CAPTCHA solution.
+- Effective Against Spam: Adding a CAPTCHA helps prevent bots and scrapers from accessing your site or spamming your forms.
+- Lightweight: Turnstile is efficient and less resource-intensive than some other CAPTCHA options.
+- To preserve other security measures: For example, Siteground Security Optimiser and Wordfence plugins add 2FA to the default WordPress login form – you may want to keep the 2FA and add Turnstile as another level of security.
+
+## The steps
+
+1. Access Cloudflare Dashboard:
+   - Log in to your [Cloudflare](https://dash.cloudflare.com/c0e793e0c5b2ad723171395ed1244d0a) account.
+   - Navigate to the `Turnstile` section in the dashboard.
+2. Add Your Site:
+   - Click `Add Site` and select your domain.
+   - Follow the on-screen instructions to complete the setup.
+   - Choose a challenge level that matches your security needs.
+3. Retrieve Your Keys:
+   - Once the site is added, go to `Settings` under your domain.
+   - Note your `Site Key` and `Secret Key`. You’ll need these for the next steps.
+4. Add Code to WordPress:
+   - Open your `functions.php` file or use a code snippet plugin
+   - Copy and paste the snippet below
+5. Replace Placeholder Text:
+   - Substitute `CLOUDFLARE_SITE_KEY` and `CLOUDFLARE_SECRET_KEY` with your actual keys.
+   - Ensure the keys are within single quotes.
+6. Save Changes:
+   - Save the file or snippet and test your login page.
+
+```php
+function get_cloudflare_turnstile_keys() {
+    return array(
+        'site_key' => 'CLOUDFLARE_SITE_KEY',
+        'secret_key' => 'CLOUDFLARE_SECRET_KEY'
+    );
+}
+
+// Enqueue Turnstile script
+function enqueue_turnstile_script() {
+    wp_enqueue_script('turnstile', 'https://challenges.cloudflare.com/turnstile/v0/api.js', array(), null);
+}
+add_action('login_enqueue_scripts', 'enqueue_turnstile_script');
+
+// Add Turnstile to login, registration, and forgot password forms
+function add_turnstile_to_forms() {
+    $keys = get_cloudflare_turnstile_keys();
+    echo '<div class="cf-turnstile" data-sitekey="' . esc_attr($keys['site_key']) . '" data-theme="light"></div>';
+}
+add_action('login_form', 'add_turnstile_to_forms');
+add_action('register_form', 'add_turnstile_to_forms');
+add_action('lostpassword_form', 'add_turnstile_to_forms');
+
+// Verify Turnstile response
+function verify_turnstile_response($user, $password = '') {
+    if (!isset($_POST['cf-turnstile-response'])) {
+        return new WP_Error('captcha_missing', __('Please complete the CAPTCHA.'));
+    }
+
+    $keys = get_cloudflare_turnstile_keys();
+    $response = wp_remote_post('https://challenges.cloudflare.com/turnstile/v0/siteverify', array(
+        'body' => array(
+            'secret' => $keys['secret_key'],
+            'response' => $_POST['cf-turnstile-response'],
+            'remoteip' => $_SERVER['REMOTE_ADDR']
+        )
+    ));
+
+    if (is_wp_error($response)) {
+        return new WP_Error('captcha_error', __('Error verifying CAPTCHA. Please try again.'));
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $result = json_decode($body, true);
+
+    if (!$result['success']) {
+        return new WP_Error('captcha_invalid', __('CAPTCHA validation failed. Please try again.'));
+    }
+
+    return $user;
+}
+
+// Apply verification to login, registration, and password reset
+add_filter('authenticate', 'verify_turnstile_response', 30, 3);
+add_filter('registration_errors', 'verify_turnstile_response', 10, 2);
+add_action('lostpassword_post', function($errors) {
+    $user = verify_turnstile_response(null);
+    if (is_wp_error($user)) {
+        $errors->add($user->get_error_code(), $user->get_error_message());
+    }
+}, 10, 1);
+
+// Add some custom styling (optional)
+function turnstile_login_style() {
+    echo "<style>
+        body.login #login {
+            width: 100% !important;
+            max-width: 350px !important;
+        }
+        body.login .cf-turnstile {
+            margin-top: 0.4rem !important;
+            margin-bottom: 1rem !important;
+        }
+    </style>";
+}
+add_action('login_enqueue_scripts', 'turnstile_login_style', 20);
+```

@@ -1,0 +1,67 @@
+---
+title: "How to access your WordPress files via SFTP on a Coolify VPS"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "If you’re running WordPress through Coolify and need direct access to your files, SFTP is the simplest way to get in."
+date: 2026-04-27T18:13
+featured: false
+categories:
+  - "technical"
+tags:
+  - "coolify"
+  - "wordpress"
+---
+
+## 1. Connect to Your VPS via SFTP
+
+Use any SFTP client (like FileZilla or your terminal).
+
+You’ll need:
+
+- **Host**: your VPS IP (if you use Tailscale, you need to use the assigned Tailscale address for the VPS)
+- **Username**: usually `root` (or your server user)
+- **Password or SSH key**
+- **Port**: `22` (default)
+
+Once connected, you’ll be browsing your server files like a normal file explorer.
+
+### 2. Navigate to the WordPress Files
+
+Coolify stores service data inside Docker volumes.
+
+The path you’re looking for is:
+
+```
+/var/lib/docker/volumes/service_name/_data
+```
+
+### 3. Find Your `service_name`
+
+Each app/service in Coolify gets its own volume.
+
+To figure out which one is yours:
+
+- Go to your Coolify dashboard
+- Open your project → service
+- Check the URL or service name – it’s usually included there
+
+That name will match the folder inside `/var/lib/docker/volumes/`.
+
+### 4. What You’ll See
+
+Inside `_data`, you’ll typically find:
+
+- `wp-content`
+- `wp-config.php`
+- core WordPress files
+
+From here, you can:
+
+- upload themes/plugins
+- edit files
+- download backups
+
+## That’s it
+
+No magic – just SFTP + knowing where Coolify stores things.

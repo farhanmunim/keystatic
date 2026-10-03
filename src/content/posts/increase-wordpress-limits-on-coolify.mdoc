@@ -1,0 +1,102 @@
+---
+title: "Increase WordPress limits on Coolify"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "If you’re running WordPress on Coolify (with Traefik as the reverse proxy), you may hit upload or memory limits when importing content or uploading large files. The fix is to append a few php_value directives to your .htaccess file using the built-in Coolify terminal."
+date: 2026-04-26T23:05
+featured: false
+categories:
+  - "technical"
+tags:
+  - "coolify"
+  - "wordpress"
+---
+
+This guide assumes you’re using the default `wordpress:apache` image, which is what Coolify’s one-click WordPress deploys ship with. If you’re on a PHP-FPM variant (`wordpress:php8.x-fpm` or similar), skip to the [PHP-FPM section](/#what-if-im-on-php-fpm) at the bottom.
+
+## Step 1. Open the container terminal
+
+In Coolify, navigate to your WordPress resource, open the **Terminal** tab, select your WordPress container from the dropdown, and click **Connect**.
+
+## Step 2. Append the limits to `.htaccess`
+
+Paste this entire block into the terminal as one piece and hit Enter. Don’t type it line by line:
+
+```
+cat >> /var/www/html/.htaccess << 'EOF'
+php_value upload_max_filesize 128M
+php_value post_max_size 128M
+php_value memory_limit 256M
+php_value max_execution_time 300
+php_value max_input_time 300
+php_value max_input_vars 3000
+EOF
+```
+
+The `<< 'EOF'` syntax tells the shell exactly where the input ends, so there’s no risk of accidentally appending the wrong thing. As soon as you hit Enter after the closing `EOF`, the command finishes and you’re back at the prompt.
+
+## Step 3. Verify the file looks right
+
+Run:
+
+```
+tail -10 /var/www/html/.htaccess
+```
+
+The last lines should match the `php_value` block you just added, and there should be **nothing else** after them – no stray commands, no half-typed text. If you see anything that isn’t a `php_value` directive at the bottom, see the [recovery section](/#help-my-site-is-now-showing-no-available-server) below.
+
+Apache reads `.htaccess` on every request, so no restart is needed. Confirm the new values are live by visiting **Tools → Site Health → Info → Server** in WordPress admin. You should see the new `upload_max_filesize`, `post_max_size`, etc.
+
+## A note on persistence
+
+These changes live inside the container’s filesystem. If you redeploy or rebuild the resource from scratch, `.htaccess` will be reset and you’ll lose the changes. For a permanent fix, mount `.htaccess` as a persistent volume under your resource’s **Storages** settings in Coolify.
+
+You should also only run the append command once – running it twice won’t break anything (Apache uses the last directive when there are duplicates), but it clutters the file.
+
+## Help, my site is now showing “no available server”
+
+If you accidentally appended something invalid to `.htaccess` (a typo, a stray command, anything that isn’t a valid Apache directive), Apache will return a 500 on every request. Traefik will mark the container unhealthy, and you’ll see “no available server” instead of your site.
+
+To recover, open the container terminal again and check what’s in the file:
+
+```
+tail -15 /var/www/html/.htaccess
+```
+
+If you spot a bad line — for example, a `cat` command that got appended as text – remove it with `sed`. For example, to remove a line that says exactly `cat /var/www/html/.htaccess`:
+
+```
+sed -i '/^cat \/var\/www\/html\/\.htaccess$/d' /var/www/html/.htaccess
+```
+
+For other bad lines, adjust the pattern between the slashes. Then verify with `tail -15` again, and test from inside the container:
+
+```
+curl -sI http://localhost/ | head -3
+```
+
+You want a `200`, `301`, or `302` – not a `500`. As soon as Apache stops 500’ing, Traefik picks the container back up automatically within a few seconds. No proxy restart needed.
+
+## What if I’m on PHP-FPM?
+
+The `php_value` directive only works when PHP runs as an Apache module (`mod_php`). If your WordPress image runs PHP via FPM, those lines are silently ignored. You can check which one you have by running this in the container terminal:
+
+```
+apachectl -M 2>/dev/null | grep -i php
+```
+
+If `php_module` shows up, you’re on `mod_php` and the instructions above work. If nothing comes back, you’re on PHP-FPM – use a `.user.ini` file instead:
+
+```
+cat > /var/www/html/.user.ini << 'EOF'
+upload_max_filesize = 128M
+post_max_size = 128M
+memory_limit = 256M
+max_execution_time = 300
+max_input_time = 300
+max_input_vars = 3000
+EOF
+```
+
+PHP caches `.user.ini` for 5 minutes by default, so either wait or restart the container from Coolify to apply immediately.

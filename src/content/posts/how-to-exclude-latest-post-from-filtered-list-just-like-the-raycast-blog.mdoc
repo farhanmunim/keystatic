@@ -1,0 +1,68 @@
+---
+title: "How to exclude latest post from filtered list (just like the Raycast blog)"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "When building a blog layout in WordPress with Bricks Builder, you might want to show the latest post as a featured post and then list all other posts below it. The challenge is excluding the most recent post from the second query while keeping filters and pagination intact. This guide shows the simplest way to handle this using two queries."
+date: 2025-07-23T19:35
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+![](/uploads/how-to-query-latest-post-and-exclude-from-filtered-list-img-1.png)
+
+## **Step 1: Query for the latest post (optional)**
+
+The first query is straightforward.  
+In Bricks Builder:
+
+- Add a **Query Loop** for posts.
+- Set:
+  - **Posts per page:** `1`
+  - **Order by:** `Date`
+  - **Order:** `Descending`
+
+This ensures only the latest post is fetched.
+
+## **Step 2: Query for all other posts**
+
+For the second query (e.g., the grid or list of posts), you need to exclude the first post. Using `offset = 1` is a common solution but can cause issues with category filters and pagination. A better approach is dynamically excluding the ID of the latest post.
+
+Enable **Query Editor (PHP)** for your second query in Bricks and use:
+
+```php
+$latest_post_id = get_posts([
+    'posts_per_page' => 1,
+    'orderby'        => 'date',
+    'order'          => 'DESC',
+    'fields'         => 'ids'
+])[0];
+
+return [
+    'post__not_in'   => [$latest_post_id],
+    'posts_per_page' => 10,
+    'orderby'        => 'date',
+    'order'          => 'DESC',
+];
+```
+
+**How it works:**
+
+- `get_posts()` fetches the ID of the latest post.
+- `post__not_in` ensures this post is excluded from the second query.
+
+**It should look something like this:**
+
+![](/uploads/how-to-query-latest-post-and-exclude-from-filtered-list-img-2.png)
+
+## **Why not use offset?**
+
+- `offset` removes the first post regardless of filters or categories, meaning your category filters may also exclude the top post of that category.
+- `post__not_in` is dynamic and works reliably with pagination and filters.
+
+## **Conclusion**
+
+By using **two queries**—one fetching just the latest post, and one excluding that post—you can create reliable and flexible layouts without breaking pagination or filters.

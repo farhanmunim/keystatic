@@ -1,0 +1,21 @@
+---
+title: "Enable dev mode for Cloudflare Turnstile"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Have Cloudflare Turnstile enabled on your site but want to bypass the actual authorisation process whilst you’re still developing?"
+date: 2024-03-20T17:26
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+It’s quite simple, go to `wp-admin` \> `Bricks` \> `Settings` \> `API keys` and enter the following:
+
+Cloudflare Turnstile: Site key: `1x00000000000000000000AA`
+
+Cloudflare Turnstile: Secret key: `1x0000000000000000000000000000000AA`
+
+To test out the visibility and status of Turnstile, please refer to the documentation [here](https://developers.cloudflare.com/turnstile/reference/testing/).

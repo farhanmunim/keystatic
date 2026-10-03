@@ -119,6 +119,7 @@ const settings = defineCollection({
     footer_text: optional,
     social: z.array(socialLink).default([]),
     analytics_url: optional,
+    noindex: z.boolean().default(false),
     head_html: optional,
     footer_html: optional,
   }),

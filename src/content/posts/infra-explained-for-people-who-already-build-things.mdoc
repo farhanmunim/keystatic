@@ -1,0 +1,1651 @@
+---
+title: "Infra, explained for people who already build things"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "More than seventy short chapters that give you the vocabulary and mental models engineers use when they talk about servers, networks, pipelines and architecture. Each one takes two or three minutes and links back to things you already run."
+date: 2026-10-03T16:53
+featured: false
+categories:
+  - "guides"
+  - "technical"
+tags:
+  - "infra"
+---
+
+Start with the journey below. Every hop a request makes on its way to your app is a chapter, and once you can narrate this path out loud you can follow most infrastructure conversations.
+
+1. **Someone types a domain** — DNS turns the name into an IP address. [DNS and record types](#dns-and-record-types)
+2. **A secure connection opens** — TLS proves the server is who it claims to be and encrypts the traffic. [HTTPS, TLS and certificates](#https-tls-and-certificates)
+3. **The edge answers if it can** — A CDN serves cached copies from a data centre near the visitor. [CDNs and the edge](#cdns-and-the-edge)
+4. **Traffic is spread and routed** — Traffic directors — a load balancer and a reverse proxy — decide which server and which app gets the request. [Forward and reverse proxies](#forward-and-reverse-proxies)
+5. **Your code runs** — In a container, a VM or a serverless function. [VMs versus containers](#vms-versus-containers)
+6. **Data is fetched** — From a cache if possible, otherwise the database. [Caching and Redis](#caching-and-redis)
+7. **Everything is recorded** — Logs, metrics and traces tell you what happened and how fast. [Logs, metrics and traces](#logs-metrics-and-traces)
+
+## Servers, SSH and the terminal
+
+*Part: Start here*
+
+A server is just a computer that is always on, waiting for requests.
+
+There’s no magic in the word. A **server** is an ordinary computer, usually sitting in a **data centre** (a building full of them, with reliable power and very fast internet), that runs with no screen or keyboard attached and never sleeps. When people say “the server”, they mean “the computer our code runs on”.
+
+Because it has no screen, you control it with text. The **terminal** (also called the **command line** or **shell**) is the window where you type commands like `ls` (list files) and read the text that comes back. It looks intimidating; it’s really just a chat with the computer where every message is an instruction.
+
+**SSH** (secure shell) is how you open a terminal on a machine that isn’t in front of you. You type `ssh user@your-server`, prove who you are (ideally with an **SSH key**, a pair of cryptographic files, rather than a password), and from then on everything you type travels to the server encrypted. Nearly all server administration happens over SSH.
+
+*Diagram 1: Your laptop connects to a server in a data centre over SSH, encrypted, on port 22. SSH gives you a terminal on a computer that isn’t in front of you.*
+
+![Diagram: your laptop connects to a server in a data centre over SSH, encrypted, on port 22](/uploads/infra-explained-for-people-who-already-b-diagram-1.svg)
+
+*SSH gives you a terminal on a computer that isn’t in front of you.*
+
+### In your setup
+
+Your Hetzner VPS is exactly this: a rented always-on computer in a German data centre. You reach its terminal with SSH (over Tailscale), and everything else in this guide runs on machines like it.
+
+### Say it like this
+
+“SSH into the box and check the logs, the dashboard isn’t telling us much.”
+
+## Who does what: the layers of a tech team
+
+*Part: Start here*
+
+Most infra confusion is really confusion about which layer someone is talking about.
+
+Engineers split a system into layers, and job titles follow the same lines:
+
+- **Frontend** is what runs in the browser: HTML, CSS, JavaScript, your Astro site.
+- **Backend** is code that runs on a server: APIs, business logic, talking to the database.
+- **Infrastructure** (“infra”) is what the backend runs on: servers, networks, storage, DNS.
+- **Platform** is the tooling that makes infra easy for other developers to use, such as an internal deploy button. Coolify (a self-hosted tool that gives you a push-to-deploy button on your own server) is a platform product.
+- **Operations** (“ops”) is keeping it all running: monitoring, backups, upgrades, incidents.
+
+“Architecture” sits across all of these. It is the set of decisions about which pieces exist and how they talk to each other, usually drawn as boxes and arrows.
+
+### In your setup
+
+Astro is your frontend, WordPress is your backend (it only serves an API now), Hetzner plus Tailscale plus your NAS is your infrastructure, Coolify is your platform, and Uptime Kuma and your nightly rsync are ops.
+
+### Say it like this
+
+“Is that a frontend bug or is it infra? The API responds fine, so I think it’s the CDN caching an old build.”
+
+## Stack, service, environment, instance
+
+*Part: Start here*
+
+Four nouns you’ll hear in almost every infra sentence.
+
+A **stack** is the set of technologies a product uses. “Our stack is Next.js, Postgres and AWS.” People also say “tech stack” or “the stack”.
+
+A **service** is one running piece of software with a job, usually reachable over the network. Your database is a service, Umami (a self-hosted, privacy-friendly alternative to Google Analytics) is a service, an email sender might be a service. A system is a set of services.
+
+An **environment** is a complete copy of the system for a purpose: `dev` for building, `staging` for testing, `production` (or `prod`) for real users.
+
+An **instance** is one running copy of something. Three instances of a service means three copies running side by side. In the cloud, “instance” also just means a virtual server.
+
+### Say it like this
+
+“We run two instances of the API service in prod, but only one in staging to save money.”
+
+## IP addresses and ports
+
+*Part: Networking and DNS*
+
+An IP address finds the machine; a port finds the program on that machine.
+
+Every device on a network has an **IP address**. IPv4 looks like `203.0.113.10`; IPv6 looks like `2001:db8::1` and exists because the world ran out of IPv4 addresses.
+
+Addresses are either **public** (reachable from the internet) or **private** (only inside a network, such as `192.168.x.x` at home or `10.x.x.x` in a data centre).
+
+A **port** is a numbered door on a machine. One server can run many programs, each listening on a different port. Common ones: 22 for SSH, 80 for HTTP, 443 for HTTPS, 5432 for Postgres and 6379 for Redis (a database and a cache you’ll meet in the databases part), 3000 or 8080 for app servers in development.
+
+Data between machines travels in small chunks called **packets**, delivered one of two ways: **TCP** checks that every packet arrives, in order (most of the web uses it), while **UDP** just sends and hopes, which is faster and fine for things like video calls where a lost split-second doesn’t matter.
+
+To “expose” or “open” a port means allowing traffic to reach it. To “bind” a port means a program has claimed it.
+
+### In your setup
+
+Your VPS has a public IP where port 22 is blocked by the Hetzner firewall, and a private Tailscale IP where port 22 works. Same machine, same port, different network path.
+
+### Say it like this
+
+“The container is listening on 3000 but nothing’s mapped to it, so it isn’t exposed.”
+
+## DNS and record types
+
+*Part: Networking and DNS*
+
+DNS is the internet’s phone book: it turns names into addresses and other facts.
+
+When you visit a domain, your device asks a **resolver** (often run by your internet provider, or a public one like Cloudflare’s 1.1.1.1). The resolver asks the domain’s **authoritative nameservers**, which hold the real answer. Where you manage those records is called your **DNS provider**, which may differ from your **registrar**, the company you bought the domain from.
+
+Records are typed:
+
+| Type | What it says |
+| --- | --- |
+| `A` | This name points to an IPv4 address. |
+| `AAAA` | Same, for IPv6. |
+| `CNAME` | This name is an alias of another name. Can’t sit on the bare domain in classic DNS. |
+| `MX` | Where email for this domain should be delivered. |
+| `TXT` | Free text, used to prove ownership and for email security (SPF, DKIM and DMARC, three standards that prove an email really came from your domain). |
+| `NS` | Which nameservers are authoritative. |
+| `CAA` | Which certificate authorities may issue certificates for you. |
+
+The bare domain (`farhan.app`) is called the **apex** or **root**. Anything in front of it is a **subdomain**. Cloudflare’s “CNAME flattening” is a workaround for putting an alias on the apex.
+
+`dig` is a terminal command that asks DNS questions. Try:
+
+```
+dig farhan.app A +short
+dig farhan.app MX +short
+```
+
+### Say it like this
+
+“Can you add a CNAME for status pointing at the uptime host, and a TXT record so Google can verify the domain?”
+
+## TTL and propagation
+
+*Part: Networking and DNS*
+
+DNS answers are cached everywhere, and TTL says for how long.
+
+Every record has a **TTL** (time to live), in seconds. A TTL of 3600 means resolvers may keep reusing the answer for an hour before asking again.
+
+“Waiting for DNS to propagate” really means waiting for old cached answers to expire around the world. Nothing is actively spreading; caches are timing out.
+
+The professional trick before a migration is to **lower the TTL** a day in advance (say to 60 seconds), make the change, then raise it again once things are stable.
+
+TTL is also a general term: caches, tokens and CDN entries all have TTLs.
+
+### Say it like this
+
+“Drop the TTL to five minutes tomorrow so the cutover on Thursday isn’t stuck behind stale records.”
+
+## HTTP, methods and status codes
+
+*Part: Networking and DNS*
+
+HTTP is the language browsers and servers speak; status codes are its one-line verdicts.
+
+A request has a **method** (`GET` read, `POST` create, `PUT`/`PATCH` update, `DELETE` remove), a **path**, **headers** (metadata like cookies and content type) and sometimes a **body**.
+
+Status codes group by first digit:
+
+- **2xx** success: 200 OK, 201 Created, 204 No Content.
+- **3xx** go elsewhere: 301 permanent redirect, 302 temporary, 304 not modified (use your cache).
+- **4xx** the client did something wrong: 400 bad request, 401 not logged in, 403 logged in but not allowed, 404 not found, 429 too many requests.
+- **5xx** the server failed: 500 generic error, 502 bad gateway, 503 unavailable, 504 gateway timeout.
+
+502 and 504 matter for infra: they usually mean a proxy in front of your app couldn’t reach it or gave up waiting. The proxy is fine; the thing behind it isn’t.
+
+Versions: HTTP/1.1 is the classic, HTTP/2 multiplexes many requests over one connection, HTTP/3 runs over UDP (via QUIC) for faster connections on flaky networks.
+
+### Say it like this
+
+“We’re getting 502s from Traefik, our reverse proxy, so the app container has probably crashed or isn’t healthy yet.”
+
+## HTTPS, TLS and certificates
+
+*Part: Networking and DNS*
+
+TLS encrypts traffic and proves the server’s identity; a certificate is the proof.
+
+HTTPS is HTTP wrapped in **TLS** (the successor to SSL; people still say “SSL cert” out of habit). During the **handshake**, the server presents a **certificate** signed by a **certificate authority** (CA) that browsers trust.
+
+**Let’s Encrypt** is a free CA whose certificates last 90 days, so tools renew them automatically using the **ACME** protocol. Other terms:
+
+- **Wildcard cert**: covers `*.farhan.app`, all subdomains one level deep.
+- **TLS termination**: the point where traffic is decrypted, usually at the load balancer or proxy. Behind that point traffic may be plain HTTP inside a private network.
+- **End-to-end encryption**: encrypted all the way to the app, not just to the edge.
+- **mTLS** (mutual TLS): both sides present certificates, common between internal services.
+- **HSTS**: a header telling browsers to only ever use HTTPS for your domain.
+
+### In your setup
+
+Traefik inside Coolify requests Let’s Encrypt certificates for each subdomain and terminates TLS. Cloudflare terminates TLS for farhan.app at its edge.
+
+### Say it like this
+
+“We terminate TLS at the load balancer and use mTLS between services.”
+
+## Forward and reverse proxies
+
+*Part: Networking and DNS*
+
+A proxy is a middleman. Which side it works for decides its name.
+
+A **forward proxy** sits in front of *clients* and makes requests on their behalf. Corporate web filters are forward proxies.
+
+A **reverse proxy** sits in front of *servers*. Visitors talk to it, and it forwards each request to the right app behind it. It typically handles:
+
+- **Routing** by domain or path (host-based and path-based routing).
+- **TLS termination** and certificates.
+- Compression, caching, redirects, header rewrites and basic rate limiting.
+
+Common reverse proxies: Nginx, Traefik, Caddy, HAProxy, Envoy. In Kubernetes (the container-orchestration system covered in the containers part) the same job is called an **ingress** (or the newer **Gateway API**). The app behind the proxy is called the **upstream** or **origin**.
+
+*Diagram 2: Visitors reach a reverse proxy, which reads the hostname and forwards each request to the matching app. One public IP, many apps: the proxy routes by hostname (host-based routing).*
+
+![Diagram: visitors reach a reverse proxy, which reads the hostname and forwards each request to the matching app](/uploads/infra-explained-for-people-who-already-b-diagram-2.svg)
+
+*One public IP, many apps: the proxy routes by hostname (host-based routing).*
+
+### In your setup
+
+One public IP, many sites. Traefik reads the hostname (`mochi.farhan.app` versus `uptime.farhan.app`) and forwards to the matching container. That’s host-based routing.
+
+### Say it like this
+
+“Put it behind the reverse proxy and let it handle certs, the app shouldn’t be exposed directly.”
+
+## Load balancers
+
+*Part: Networking and DNS*
+
+A load balancer spreads traffic across several copies of a service so no single one is overwhelmed or critical.
+
+It keeps a **pool** (or **target group**) of backends, runs **health checks** against them, and stops sending traffic to any that fail.
+
+Two families:
+
+- **Layer 4** balancers work on raw TCP/UDP connections. Fast and simple; they don’t read the HTTP request.
+- **Layer 7** balancers understand HTTP, so they can route by path, header or cookie. A reverse proxy is effectively an L7 balancer.
+
+(The layers come from the **OSI model**, a seven-level way of describing networking. You only need L4 = transport and L7 = application.)
+
+Distribution methods include round robin, least connections and weighted. **Sticky sessions** keep a user on the same backend, which is a sign the app is storing state it shouldn’t. **Draining** means letting existing requests finish before removing a server. Cloud providers sell load balancers as products; AWS’s are the **ALB** (layer 7) and **NLB** (layer 4), names you’ll hear a lot.
+
+### Say it like this
+
+“The ALB health check is failing on one target, so it’s been pulled from the pool.”
+
+## CDNs and the edge
+
+*Part: Networking and DNS*
+
+A CDN keeps copies of your content in data centres close to users.
+
+A **content delivery network** has hundreds of **points of presence** (PoPs) worldwide. The first request for a file goes to your **origin**; the CDN caches the response and serves later requests from the nearest PoP.
+
+- **Cache hit** / **miss**: served from the CDN, or had to go to origin. **Hit ratio** is the percentage of hits.
+- **Purge** or **invalidate**: throw away cached copies so new content appears.
+- **Cache-Control** headers tell the CDN and browsers how long to keep things.
+- **The edge** means those PoPs. “Running at the edge” means code executes in the PoP, not in one central region.
+
+CDNs also absorb **DDoS** attacks (attackers flooding a site with junk traffic to knock it over) and often provide a **WAF** (web application firewall). Big names: Cloudflare, Fastly, Akamai, AWS CloudFront.
+
+### In your setup
+
+Cloudflare Pages is a CDN-first host. Your Astro build is uploaded once and served from every PoP. There’s no origin server in the classic sense, which is why a static site is so fast and cheap.
+
+### Say it like this
+
+“It’s a cache issue, purge the CDN and check the Cache-Control on that route.”
+
+## Firewalls, NAT and VPNs
+
+*Part: Networking and DNS*
+
+Most of network security is deciding who can reach what, then hiding everything else.
+
+A **firewall** allows or blocks traffic by rules, usually source, destination and port. Cloud providers call them **security groups** or **network firewall rules**. “Default deny” means everything is blocked unless a rule allows it.
+
+**Ingress** is traffic coming in; **egress** is traffic going out. (Confusingly, Kubernetes, which you’ll meet in the containers part, also uses “ingress” for its reverse proxy.)
+
+**NAT** (network address translation) lets many private machines share one public IP for outbound traffic. Your home router does this. In the cloud, a **NAT gateway** lets private servers reach the internet without being reachable from it.
+
+A **VPN** joins distant machines into one private network. Classic VPNs route through a central server. **Mesh VPNs** like Tailscale (built on WireGuard) connect devices directly. A **bastion host** or **jump box** is the older pattern: one hardened server you SSH into, then hop to private machines.
+
+### In your setup
+
+Blocking port 22 publicly and only allowing SSH over Tailscale is textbook practice. You’ve replaced a bastion host with a mesh VPN.
+
+### Say it like this
+
+“The database has no public ingress, you’ll need to be on the VPN.”
+
+## VPCs and subnets
+
+*Part: Networking and DNS*
+
+A VPC is your own private network inside a cloud provider.
+
+A **virtual private cloud** is an isolated network where you place your servers and databases. You carve it into **subnets**, smaller address ranges written in **CIDR** notation like `10.0.1.0/24` (the `/24` means the first 24 bits are fixed, giving 256 addresses).
+
+The standard shape:
+
+- **Public subnets** hold things that face the internet: load balancers, NAT gateways.
+- **Private subnets** hold app servers and databases with no direct internet route.
+- **Route tables** decide where traffic from each subnet goes.
+
+Connecting VPCs together is **peering**; connecting a VPC to an office is a **site-to-site VPN** or a dedicated link (AWS Direct Connect, Azure ExpressRoute).
+
+### Say it like this
+
+“The RDS instance (AWS’s managed database, coming up in two chapters) sits in a private subnet; only the app tier’s security group can reach 5432.”
+
+## Bare metal, VPS and cloud VMs
+
+*Part: Hosting and cloud*
+
+Three ways to rent a computer, from most physical to most abstract.
+
+- **Bare metal** or a **dedicated server**: a whole physical machine that’s yours. Predictable performance, slowest to provision.
+- **VPS** (virtual private server): a slice of a physical machine, carved out by a **hypervisor** (software that splits one physical machine into several virtual ones). Fixed monthly price, generous bandwidth. Hetzner, DigitalOcean, Linode, OVH.
+- **Cloud VM**: technically also a VPS, but inside a large platform (AWS EC2, Azure VMs, Google Compute Engine) with APIs, autoscaling, and dozens of managed services beside it. Usually billed per second, with bandwidth charged separately.
+
+Industry shorthand: **on-prem** (on-premises) means servers in your own building; **colo** (colocation) means your hardware in someone else’s data centre; **hybrid cloud** mixes on-prem with public cloud; **multi-cloud** means using more than one provider.
+
+### Say it like this
+
+“For a steady workload a couple of Hetzner boxes beat EC2 on cost, but you lose the managed services around it.”
+
+## IaaS, PaaS, SaaS and friends
+
+*Part: Hosting and cloud*
+
+The “as a service” ladder describes how much of the stack someone else manages.
+
+| Model | You manage | Examples |
+| --- | --- | --- |
+| IaaS | OS, runtime, app, data | EC2, Hetzner Cloud |
+| PaaS | App and data only | Heroku, Render, Railway, Fly.io, Vercel |
+| FaaS / serverless | Individual functions | AWS Lambda, Cloudflare Workers |
+| SaaS | Nothing, you just use it | Gmail, Xero, Slack |
+
+Others you’ll hear: **DBaaS** (managed databases), **BaaS** (backend as a service, like Supabase or Firebase), **CaaS** (containers as a service).
+
+A **managed service** means the provider handles patching, backups and scaling. The trade-off is always cost and control versus effort.
+
+### In your setup
+
+Coolify turns your IaaS box into a self-hosted PaaS. You get Heroku-style “push to deploy”, but you still own the OS updates, which is why you were debugging apt and Traefik yourself.
+
+## Serverless and edge functions
+
+*Part: Hosting and cloud*
+
+Serverless means you hand over code, not servers, and pay only when it runs.
+
+There are still servers, you just never see them. Key ideas:
+
+- **Functions** run in response to **events**: an HTTP request, a file upload, a schedule, a queue message.
+- **Scale to zero**: nothing runs (or costs) when idle.
+- **Cold start**: the delay when a function spins up from nothing. Edge runtimes like Cloudflare Workers have tiny cold starts; traditional Lambda can take hundreds of milliseconds.
+- **Stateless**: each run starts fresh, so data lives in a database or storage, not in memory.
+- Limits on execution time and memory mean long jobs don’t fit well.
+
+**Edge functions** are serverless functions that run in CDN PoPs, close to users. “Serverless” has also broadened to mean any service with no servers to manage, such as serverless databases (Neon, PlanetScale) that scale and bill by usage.
+
+### In your setup
+
+Your CLAUDE.md “serverless first” rule is a common industry stance: default to Workers and Actions, and escalate to a long-running server only when you need persistent processes, big databases or websockets.
+
+## Regions, zones and latency
+
+*Part: Hosting and cloud*
+
+Where your servers physically sit affects speed, resilience and legal compliance.
+
+- A **region** is a geographic area, like `eu-west-2` (AWS London) or Hetzner’s `fsn1` (Falkenstein).
+- An **availability zone** (AZ) is one or more separate data centres within a region, with independent power and networking. Running across multiple AZs protects you from one building failing.
+- **Latency** is travel time for a request, measured in milliseconds. London to Frankfurt is about 15ms; London to Sydney about 250ms. Nothing beats the speed of light, so distance matters.
+- **Data residency** or **sovereignty**: rules requiring data to stay in a country or region, important under UK GDPR and for public sector contracts.
+
+“Multi-AZ” is the standard minimum for production resilience; “multi-region” is for large companies or strict uptime targets, and is much harder because data has to be synchronised over long distances.
+
+### Say it like this
+
+“The database is multi-AZ but single-region, so a regional outage would still take us down.”
+
+## AWS service names you’ll hear
+
+*Part: Hosting and cloud*
+
+AWS dominates cloud conversations, and its product names are used as shorthand even by people on other clouds.
+
+| Name | What it is |
+| --- | --- |
+| EC2 | Virtual machines. |
+| S3 | Object storage for files. “S3-compatible” is an industry standard API. |
+| RDS / Aurora | Managed relational databases (Postgres, MySQL). |
+| DynamoDB | Managed NoSQL key-value database. |
+| Lambda | Serverless functions. |
+| ECS / Fargate | Run containers without managing Kubernetes (the orchestration system in the next part). |
+| EKS | Managed Kubernetes. |
+| ECR | Container image registry. |
+| CloudFront | CDN. |
+| Route 53 | DNS. |
+| ALB / NLB | Layer 7 and layer 4 load balancers. |
+| VPC | Private networking. |
+| IAM | Users, roles and permissions. |
+| SQS / SNS | Message queue / pub-sub notifications. |
+| CloudWatch | Logs, metrics and alarms. |
+| Secrets Manager | Stores passwords and API keys. |
+| CloudFormation / CDK | AWS’s infrastructure-as-code tools. |
+
+### Say it like this
+
+“Uploads go to S3, a Lambda picks up the event and pushes a job onto SQS.”
+
+## Translating between AWS, Azure and Google Cloud
+
+*Part: Hosting and cloud*
+
+The big three sell the same building blocks under different names.
+
+| Job | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| VMs | EC2 | Virtual Machines | Compute Engine |
+| Object storage | S3 | Blob Storage | Cloud Storage |
+| Managed SQL | RDS | Azure SQL / Database for PostgreSQL | Cloud SQL |
+| Functions | Lambda | Functions | Cloud Run functions |
+| Containers, no K8s | ECS / Fargate | Container Apps | Cloud Run |
+| Kubernetes | EKS | AKS | GKE |
+| Identity | IAM | Entra ID + RBAC | Cloud IAM |
+| Monitoring | CloudWatch | Azure Monitor | Cloud Monitoring |
+| Data warehouse | Redshift | Synapse / Fabric | BigQuery |
+
+Azure is strong wherever Microsoft 365 is entrenched (so, most UK corporates and much of the public sector). Google Cloud is known for data and analytics (BigQuery). Cloudflare is increasingly a fourth option for edge compute, storage (R2) and databases (D1).
+
+### In your setup
+
+Given your FP&A and BI background, the data warehouse row is the one you’re likeliest to meet at work: Power BI on top of Azure/Fabric, or dashboards over BigQuery or Snowflake.
+
+## Cloud accounts and IAM
+
+*Part: Hosting and cloud*
+
+IAM (identity and access management) controls who can do what to which cloud resources.
+
+- A **principal** is anything that can act: a user, a group, or a **role**.
+- A **role** is a set of permissions that people or machines *assume* temporarily, rather than holding permanent keys.
+- A **policy** is a document listing allowed or denied actions on resources, such as “may read objects in this S3 bucket”.
+- A **service account** is an identity for software, not a human.
+- **Access keys** are long-lived credentials; modern practice avoids them in favour of short-lived tokens, for example GitHub Actions using **OIDC** to assume a cloud role without storing any secret.
+
+Large organisations use many accounts (AWS **Organizations**, Azure **subscriptions**, GCP **projects**) to separate prod from dev and contain damage. The root or owner account is locked away and rarely used.
+
+### Say it like this
+
+“Don’t give the CI user admin, create a deploy role scoped to that one bucket.”
+
+## How cloud billing works (and bites)
+
+*Part: Hosting and cloud*
+
+The part of infra where your accounting background is a genuine advantage.
+
+- **On-demand**: pay per second or hour, no commitment. The most expensive rate.
+- **Reserved instances** and **savings plans**: commit to one or three years for large discounts. Essentially prepayment with a take-or-pay risk.
+- **Spot** (AWS) or **preemptible** (GCP): spare capacity at a steep discount that can be taken back at short notice. Good for batch jobs.
+- **Egress fees**: moving data *out* of a cloud costs money; moving it in is usually free. This is the classic surprise bill, and a reason people like Cloudflare R2, which charges no egress.
+- **Tagging**: labelling resources by team or project so costs can be allocated, just like cost centres.
+- **FinOps**: the discipline of managing cloud spend, with its own job titles. Unit economics such as “cost per customer” or “cost per 1,000 requests” are the language it uses.
+
+Cloud costs are mostly opex; buying servers is capex. That shift is one reason finance teams were involved in cloud migrations from the start.
+
+### Say it like this
+
+“Our compute is covered by a savings plan, the variance is almost all egress from the analytics export.”
+
+## VMs versus containers
+
+*Part: Containers and orchestration*
+
+A VM fakes a whole computer; a container fakes just an isolated process on a shared one.
+
+A **virtual machine** runs a full operating system on virtual hardware provided by a **hypervisor**. Strong isolation, but each VM carries a whole OS, so it’s heavy and slow to boot.
+
+A **container** shares the host’s operating system **kernel** (the core of the OS) and isolates only the process, its files and its network. It starts in milliseconds and is small, but isolation is weaker than a VM.
+
+In practice they stack: containers run *inside* VMs. Your VPS is a VM; Docker runs containers inside it.
+
+*Diagram 3: Layer diagram: each virtual machine carries its own guest operating system on top of a hypervisor, while containers share the host operating system’s kernel through a container runtime. Each VM carries a whole operating system of its own; containers share the host’s, which is why they’re small and start fast.*
+
+![Layer diagram: each virtual machine carries its own guest operating system on top of a hypervisor, while containers share the host operating system's kernel through a container runtime](/uploads/infra-explained-for-people-who-already-b-diagram-3.svg)
+
+*Each VM carries a whole operating system of its own; containers share the host’s, which is why they’re small and start fast.*
+
+Words to know: the **host** is the machine running containers; the **container runtime** actually runs them (Docker Engine, containerd, Podman); **OCI** is the open standard for image formats, so images work across tools.
+
+### Say it like this
+
+“We containerised the app so it runs the same on a laptop, in CI and in prod.”
+
+## Images, tags and registries
+
+*Part: Containers and orchestration*
+
+An image is the recipe’s output; a container is that image running.
+
+A **Dockerfile** lists steps to build an **image**: start from a **base image**, copy code, install dependencies, set a start command. Each step creates a cached **layer**, so unchanged steps don’t rebuild.
+
+```
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+CMD ["node", "server.js"]
+```
+
+Images are stored in a **registry**: Docker Hub, GitHub Container Registry (GHCR), AWS ECR. An image is named `repository:tag`, for example `umami:postgresql-latest`.
+
+- A **tag** is a movable label. `latest` is just a convention and can silently change, so production pins specific versions.
+- A **digest** (`sha256:…`) is an unchangeable fingerprint of exact contents.
+- **Multi-stage builds** compile in one stage and copy only the output into a slim final image.
+- **Image scanning** checks images for known vulnerabilities.
+
+### Say it like this
+
+“Pin the image by digest, not latest, or the next pull could change prod under us.”
+
+## Volumes, networks and Compose
+
+*Part: Containers and orchestration*
+
+Containers are disposable, so anything worth keeping lives outside them.
+
+A container’s own filesystem is thrown away when it’s replaced. To keep data you attach a **volume** (storage managed by Docker) or a **bind mount** (a folder from the host). Your nightly rsync backs up volumes precisely because that’s where the real data lives.
+
+Containers talk to each other over Docker **networks**, using service names as hostnames (`db:5432`) instead of IPs.
+
+**Docker Compose** describes a multi-container app in one YAML file (a simple, indentation-based configuration format): which images, which ports, which volumes, which environment variables, and what depends on what. It’s the standard for running a small stack on one machine.
+
+```
+services:
+  app:
+    image: ghcr.io/me/app:1.4.2
+    environment:
+      DATABASE_URL: postgres://app@db:5432/app
+    depends_on: [db]
+  db:
+    image: postgres:16
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata: {}
+```
+
+### In your setup
+
+Coolify’s one-click services, like Umami, are Compose files under the hood, with Traefik labels added for routing.
+
+## Why orchestration exists
+
+*Part: Containers and orchestration*
+
+Compose runs containers on one machine. Orchestration runs them across many, and keeps them running.
+
+Once you have dozens of servers and hundreds of containers, someone has to decide:
+
+- which machine each container runs on (**scheduling**);
+- what to do when a container or machine dies (**self-healing**);
+- how to add copies under load (**autoscaling**);
+- how to roll out a new version without downtime (**rolling updates**);
+- how services find each other when they keep moving (**service discovery**).
+
+An **orchestrator** does this. You declare the **desired state** (“three copies of the API, version 1.4”) and it constantly works to make reality match. That loop is called **reconciliation**, and “declarative” is the word for describing what you want rather than the steps to get there.
+
+Kubernetes won this category. Alternatives: HashiCorp Nomad, Docker Swarm (fading), and managed options like AWS ECS or Google Cloud Run that hide the orchestrator entirely.
+
+### Say it like this
+
+“We don’t need Kubernetes at our size, Cloud Run gives us autoscaling without running a cluster.”
+
+## Kubernetes vocabulary
+
+*Part: Containers and orchestration*
+
+Kubernetes (K8s) is the most popular orchestrator: it runs your containers across many machines and keeps them running.
+
+It came out of Google, it’s open source, and it won so completely that “do we need Kubernetes?” is now a standard engineering debate. It also has its own dictionary, and these words cover most conversations.
+
+| Term | Meaning |
+| --- | --- |
+| Cluster | The whole system: a control plane plus worker machines. |
+| Control plane | The brain that stores desired state and schedules work. |
+| Node | A worker machine (usually a VM). |
+| Pod | The smallest unit: one or more containers that share a network address. |
+| Deployment | “Keep N copies of this pod running”, with rolling updates. |
+| ReplicaSet | What a Deployment uses to hold the count. Rarely touched directly. |
+| Service | A stable internal address that load-balances across matching pods. |
+| Ingress / Gateway | Routes outside HTTP traffic to services. The cluster’s reverse proxy. |
+| Namespace | A folder-like boundary to separate teams or environments. |
+| ConfigMap / Secret | Configuration and sensitive values injected into pods. |
+| PersistentVolume | Storage that outlives pods. |
+| StatefulSet | Like a Deployment, for things needing stable identity, such as databases. |
+| DaemonSet | One pod on every node, for agents like log collectors. |
+| Job / CronJob | Run to completion, once or on a schedule. |
+| HPA | Horizontal Pod Autoscaler: adds pods under load. |
+| kubectl | The command-line tool (“cube-control” or “cube-cuttle”). |
+| Manifest | A YAML file describing a resource. |
+
+### Say it like this
+
+“The pod’s in CrashLoopBackOff, check the logs, it’s probably a missing secret.”
+
+## Helm, sidecars and the K8s ecosystem
+
+*Part: Containers and orchestration*
+
+The tools and patterns that grew up around Kubernetes.
+
+- **Helm**: a package manager for Kubernetes. A **chart** is a templated bundle of manifests; you install it with your own **values**.
+- **Kustomize**: an alternative that layers patches on plain YAML instead of templating it.
+- **Operator**: software that runs inside the cluster and manages a complex app (like a Postgres cluster) the way a human operator would, using **custom resources**.
+- **Sidecar**: a helper container in the same pod as your app, handling logging, proxying or secrets so your app doesn’t have to.
+- **Service mesh** (Istio, Linkerd): sidecars or node agents on every service that add mTLS, retries and traffic metrics between services without code changes.
+- **k3s**, **kind**, **minikube**: lightweight Kubernetes for small servers or laptops.
+- **Managed K8s**: EKS, AKS and GKE run the control plane for you.
+
+The **CNCF** (Cloud Native Computing Foundation) hosts Kubernetes and many of these tools. “Cloud native” loosely means containers, orchestration, microservices and declarative config.
+
+### Say it like this
+
+“We install it from the upstream Helm chart and override the values per environment.”
+
+## Git and pull request vocabulary
+
+*Part: CI/CD and DevOps*
+
+The words teams use around code changes, beyond commit and push.
+
+- **PR** (pull request, GitHub) or **MR** (merge request, GitLab): a proposal to merge a branch, with discussion and checks.
+- **Review**, **approve**, **request changes**. A **reviewer** is assigned; **CODEOWNERS** files auto-assign them by folder.
+- **Checks** or **status checks**: automated tests that must pass before merging. “The PR is green” means all passed.
+- **Branch protection**: rules such as “main needs one approval and passing checks”.
+- **Merge**, **squash merge** (all commits become one), **rebase** (replay commits on top of the latest main for a straight history).
+- **Merge conflict**: two changes touched the same lines.
+- **Upstream**: the original repo you forked from, or the remote branch you track.
+- **Monorepo**: many projects in one repository. **Polyrepo**: one per project.
+- **Cherry-pick**: copy one specific commit onto another branch, often for a hotfix.
+
+### Say it like this
+
+“Can you rebase on main? There’s a conflict, and CI didn’t run on the latest commit.”
+
+## Branching strategies
+
+*Part: CI/CD and DevOps*
+
+How a team organises branches says a lot about how often it ships.
+
+**Trunk-based development**: everyone merges small changes into `main` (the “trunk”) at least daily. Unfinished features hide behind feature flags. Used by most fast-moving teams.
+
+**GitHub flow**: short-lived feature branches off main, a PR each, merge and deploy. A light version of trunk-based.
+
+**GitFlow**: long-lived `develop` and `main` branches plus release and hotfix branches. Suits scheduled releases, like packaged software; seen as heavy for web apps.
+
+Related terms: a **feature branch** holds one piece of work; a **release branch** freezes code for a version; a **hotfix** is an urgent fix straight to production; **long-lived branches** are a warning sign because they drift and cause painful merges.
+
+### Say it like this
+
+“We’re trunk-based, so keep PRs small and put the new checkout behind a flag.”
+
+## Continuous integration (CI)
+
+*Part: CI/CD and DevOps*
+
+CI means every change is automatically built and tested as soon as it’s pushed.
+
+The “integration” in CI is integrating your code with everyone else’s, frequently, so problems surface early. A CI system runs a **pipeline** on each push or PR, typically:
+
+- **Install** dependencies (with caching to save time).
+- **Lint** and **format check**: style and obvious mistakes.
+- **Type check**, if the language has types.
+- **Test**: **unit** tests (small pieces), **integration** tests (pieces together, such as app plus database), and **end-to-end** (E2E) tests that drive a real browser.
+- **Build**: produce the deployable output, called a **build artifact**.
+- **Security scans**: dependency vulnerabilities (**SCA**), code patterns (**SAST**), leaked secrets.
+
+A **flaky test** passes and fails randomly and slowly destroys trust in CI. “Breaking the build” means your change made main fail.
+
+CI tools: GitHub Actions, GitLab CI, CircleCI, Jenkins (old but everywhere), Buildkite.
+
+### Say it like this
+
+“CI’s red on main, someone merged with a flaky E2E test skipped.”
+
+## Continuous delivery and deployment (CD)
+
+*Part: CI/CD and DevOps*
+
+Two different things share the letters CD.
+
+**Continuous delivery**: every change that passes CI is *ready* to release, and releasing is a button press.
+
+**Continuous deployment**: every change that passes CI *is* released automatically, with no human step.
+
+A **deployment pipeline** promotes the same build artifact through environments: dev, then staging, then production. **Promotion** means moving a tested build forward rather than rebuilding it, so what you tested is exactly what ships.
+
+Other terms: **release** (making a version available, which may differ from deploying it if features are flagged off), **deploy freeze** (no deploys, often around Christmas or year end), **manual approval gate**, **deployment frequency** and **lead time** (two of the four **DORA metrics** engineering teams are measured on; the others are change failure rate and time to restore).
+
+### In your setup
+
+farhan.app does continuous deployment: a push to GitHub, or a WordPress publish via the deploy hook, triggers a build on Cloudflare Pages that goes straight live.
+
+## Anatomy of GitHub Actions
+
+*Part: CI/CD and DevOps*
+
+GitHub Actions has precise terms. Using the right one is an instant credibility signal.
+
+| Term | Meaning |
+| --- | --- |
+| Workflow | A YAML file in `.github/workflows/`. The whole automated process. |
+| Trigger / event | What starts it: `push`, `pull_request`, `schedule` (cron), `workflow_dispatch` (manual button). |
+| Run | One execution of a workflow. |
+| Job | A group of steps on one machine. Jobs run in parallel unless linked by `needs`. |
+| Step | A single command or action inside a job. |
+| Action | A reusable step others have published, like `actions/checkout`. |
+| Runner | The machine that runs a job. GitHub-hosted, or self-hosted on your own server. |
+| Matrix | Run the same job across versions or OSes. |
+| Secrets / variables | Encrypted values and plain config available to workflows. |
+| Artifact | A file a run saves for later jobs or download. |
+| Environment | A named target (like production) that can require approvals. |
+
+```
+on: { push: { branches: [main] } }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm test
+```
+
+So a GitHub Action isn’t “an integration”. You’d say “a workflow runs on push”, “the deploy job failed”, or “we use the checkout action”. An **integration** or **GitHub App** is a third-party service connected to your repo, such as Vercel, Slack or Dependabot.
+
+## Environments, config and preview deploys
+
+*Part: CI/CD and DevOps*
+
+Same code, different settings, different audiences.
+
+- **Local**: your machine.
+- **Dev**: a shared development environment.
+- **Staging** (or **pre-prod**, **UAT**): as close to production as possible, for final checks. UAT, user acceptance testing, is where business users sign off, a term you’ll know from finance system rollouts.
+- **Production**: real users, real data.
+- **Preview** or **ephemeral** environments: a temporary copy spun up for each PR, then destroyed on merge.
+
+What differs between environments is **configuration**, usually passed in as **environment variables** (`DATABASE_URL`, `API_KEY`). The **twelve-factor app** principles say config belongs in the environment, never in code. **Environment parity** means keeping them alike so “works in staging” predicts “works in prod”. **Config drift** is when they quietly diverge.
+
+### In your setup
+
+Cloudflare Pages already gives you a preview URL per branch. That’s an ephemeral environment, and a nice place to check WordPress content changes before they hit main.
+
+## Deployment strategies and rollbacks
+
+*Part: CI/CD and DevOps*
+
+How you swap old code for new decides how much a bad release can hurt.
+
+- **Recreate**: stop old, start new. Simple, with downtime.
+- **Rolling**: replace instances a few at a time. The default in Kubernetes.
+- **Blue-green**: run a full new copy (green) beside the old (blue), then switch traffic in one go. Instant rollback by switching back. Costs double capacity briefly.
+- **Canary**: send a small share of traffic (say 5%) to the new version, watch metrics, then ramp up. Named after canaries in coal mines.
+- **Shadow** or **dark launch**: send copied traffic to the new version without users seeing its responses.
+
+**Zero-downtime deployment** is the goal. A **rollback** returns to the previous version; a **roll-forward** fixes the bug with another quick release instead. Database changes complicate rollbacks, which is why migrations are designed to be backwards compatible.
+
+### Say it like this
+
+“Canary looked fine at 10%, error rate’s flat, promoting to 100%.”
+
+## Feature flags
+
+*Part: CI/CD and DevOps*
+
+Feature flags separate deploying code from releasing a feature.
+
+A **feature flag** (or **toggle**) is an if-statement controlled from outside the code. New code ships switched off, then gets turned on for internal staff, then a percentage of users, then everyone.
+
+- **Progressive rollout**: turning a flag on gradually.
+- **Targeting**: on for certain users, plans or countries.
+- **Kill switch**: a flag that turns off a misbehaving feature without a deploy.
+- **A/B test** or **experiment**: flags used to compare variants on a metric.
+- **Flag debt**: old flags nobody removed, cluttering the code.
+
+Tools: LaunchDarkly, Unleash, Flagsmith, PostHog, Statsig, or a simple config table.
+
+### Say it like this
+
+“It’s merged but dark, we’ll flip the flag for internal users first.”
+
+## Infrastructure as code and GitOps
+
+*Part: CI/CD and DevOps*
+
+Instead of clicking around dashboards, describe your infrastructure in files and let a tool create it.
+
+**Infrastructure as code** (IaC) means servers, networks, DNS and databases are defined in version-controlled files. Benefits: repeatable, reviewable in PRs, and you can rebuild everything from scratch.
+
+- **Terraform** (and its open-source fork **OpenTofu**): the most common IaC tool, works across all clouds. You write **resources** in HCL, run `plan` to preview changes, then `apply`. It records reality in a **state file**.
+- **Pulumi**: IaC in real programming languages like TypeScript.
+- **CloudFormation**, **CDK**, **Bicep**: AWS and Azure native tools.
+- **Ansible**: **configuration management**, setting up software on existing servers, rather than creating them.
+
+**ClickOps** is the joking term for managing infra by clicking. **Drift** is when reality no longer matches the code. **GitOps** goes further: the Git repo is the source of truth, and an agent (Argo CD, Flux) continuously syncs the live system to match it.
+
+### In your setup
+
+Your Hetzner guide is documentation of ClickOps. The natural next step would be a Terraform file that creates the server and firewall, plus an Ansible playbook or cloud-init script that installs Coolify.
+
+## Versions, releases and dependencies
+
+*Part: CI/CD and DevOps*
+
+Version numbers are a contract about how risky an upgrade is.
+
+**Semantic versioning** (semver) uses `MAJOR.MINOR.PATCH`, such as `2.4.1`:
+
+- **Major**: breaking changes. Upgrading may require code changes.
+- **Minor**: new features, backwards compatible.
+- **Patch**: bug fixes only.
+
+Pre-releases look like `3.0.0-beta.2`. **LTS** (long-term support) versions get fixes for years. **EOL** (end of life) means no more security patches, which is why Ubuntu 22.04’s support window matters.
+
+Dependency terms: a **lockfile** (`package-lock.json`) pins exact versions; **transitive dependencies** are your dependencies’ dependencies; **Dependabot** and **Renovate** open PRs to update them; a **changelog** lists what changed; **release notes** explain it for users. **Tags** in Git mark the commit each version came from.
+
+### Say it like this
+
+“It’s a major bump, read the changelog for breaking changes before merging the Renovate PR.”
+
+## DevOps, SRE and platform engineering
+
+*Part: CI/CD and DevOps*
+
+Three overlapping job families that all sit between writing code and running it.
+
+**DevOps** started as a culture: developers and operations share responsibility instead of throwing code over a wall. “You build it, you run it.” It’s now also a job title, usually meaning someone who owns CI/CD, cloud and IaC.
+
+**SRE** (site reliability engineering) came from Google: software engineers who treat reliability as an engineering problem, using SLOs, error budgets and automation to reduce **toil** (repetitive manual work).
+
+**Platform engineering** builds an **internal developer platform** (IDP): golden paths, templates and self-service tools so product developers can ship without being infra experts. Backstage is a common portal.
+
+Also heard: **DevSecOps** (security built into the pipeline), **MLOps** (the same ideas for machine-learning models), **shift left** (catch problems earlier in the process, such as security checks in CI rather than after release).
+
+### Say it like this
+
+“The platform team owns the golden path, product teams just fill in a template and get CI, observability and a deploy target.”
+
+## SQL, NoSQL and picking a database
+
+*Part: Databases and data*
+
+Relational databases are the default; everything else is a specialist tool.
+
+**Relational** (SQL) databases store data in tables with a fixed **schema** (an agreed shape for the tables and their columns) and join them with keys. Postgres, MySQL/MariaDB, SQL Server, SQLite. Postgres is the modern favourite.
+
+**NoSQL** is an umbrella for everything else:
+
+- **Document** stores (MongoDB, Firestore): JSON-like records, flexible shape.
+- **Key-value** stores (Redis, DynamoDB): look up a value by key, extremely fast.
+- **Wide-column** (Cassandra): huge write volumes.
+- **Graph** (Neo4j): relationships are the main data.
+- **Search** engines (Elasticsearch, OpenSearch, Meilisearch): full-text search.
+- **Time-series** (TimescaleDB, InfluxDB): metrics over time.
+- **Vector** databases (pgvector, Pinecone): similarity search for AI features.
+
+For analytics there’s a split you’ll recognise from BI: **OLTP** databases handle live transactions; **OLAP** systems (data warehouses like Snowflake, BigQuery) handle big analytical queries. **ETL/ELT** pipelines move data from one to the other.
+
+### Say it like this
+
+“Just use Postgres until you have a specific reason not to.”
+
+## Transactions, ACID and indexes
+
+*Part: Databases and data*
+
+Why databases can be trusted with money, and why some queries are slow.
+
+A **transaction** groups operations so they all succeed or all fail. Like a journal that must balance before it posts. **ACID** describes the guarantees:
+
+- **Atomicity**: all or nothing.
+- **Consistency**: rules and constraints always hold.
+- **Isolation**: concurrent transactions don’t see each other’s half-finished work.
+- **Durability**: once committed, it survives a crash.
+
+An **index** is a sorted lookup structure on a column, like an index at the back of a book. It makes reads fast and writes slightly slower. A **full table scan** reads every row, which is what happens without a useful index. `EXPLAIN` shows how the database plans to run a query.
+
+Other terms: **primary key**, **foreign key**, **normalisation** (no duplicated data) versus **denormalisation** (deliberate duplication for speed), **deadlock** (two transactions waiting on each other), and the **N+1 query problem**, where code runs one query per item in a list instead of one query for all.
+
+### Say it like this
+
+“That endpoint is doing N+1 queries and the filter column isn’t indexed.”
+
+## Schema migrations
+
+*Part: Databases and data*
+
+Migrations are version control for your database structure.
+
+A **migration** is a small script that changes the schema: add a table, add a column, create an index. They’re numbered or timestamped, committed to Git, and applied in order. The database records which have run.
+
+Most frameworks include a migration tool (Prisma, Drizzle, Django, Rails, Laravel, Flyway, Liquibase). “Run the migrations” is usually a step in the deploy pipeline.
+
+The hard part is changing a live database without downtime. The standard approach is **expand and contract**:
+
+- **Expand**: add the new column alongside the old one; code writes to both.
+- **Backfill**: copy existing data into the new column.
+- **Switch**: code reads from the new column.
+- **Contract**: remove the old column in a later release.
+
+Each step is safe to roll back. **Seeding** means loading starting or test data.
+
+### In your setup
+
+Your GA4 import into Umami’s Postgres was effectively a one-off backfill, done straight into production tables.
+
+## Replicas, failover and sharding
+
+*Part: Databases and data*
+
+How databases survive failures and grow beyond one machine.
+
+**Replication** copies data from a **primary** (which accepts writes) to one or more **replicas**. Older docs say master/slave; modern ones say primary/replica or leader/follower.
+
+- **Read replicas** take read traffic off the primary.
+- **Synchronous** replication waits for the replica to confirm each write (safer, slower). **Asynchronous** doesn’t, so a replica can briefly lag behind. That delay is **replication lag**.
+- **Failover**: promoting a replica to primary when the primary dies. Automatic failover is a key feature of managed databases.
+- **High availability** (HA): set up so a single failure doesn’t cause an outage.
+
+When one primary can’t handle the writes, you **shard** or **partition**: split data across databases by a key such as customer ID. It’s powerful and painful, so most teams scale vertically for a very long time first.
+
+### Say it like this
+
+“The dashboard reads from a replica, so numbers can lag the primary by a few seconds.”
+
+## Connection pooling
+
+*Part: Databases and data*
+
+Opening a database connection is expensive, so apps reuse a small set of them.
+
+Each connection to Postgres uses memory on the server, and Postgres typically allows only a few hundred. A **connection pool** keeps a fixed set of open connections and lends them to requests as needed.
+
+Pools live either inside the app (most database libraries have one) or as a separate proxy such as **PgBouncer** or AWS RDS Proxy.
+
+This matters most with serverless. Hundreds of short-lived function instances each opening their own connection will exhaust the database quickly. That’s why serverless database providers offer pooled or HTTP-based connections, and why Cloudflare built Hyperdrive.
+
+Symptoms of pool trouble: “too many connections” errors, or requests hanging while they wait for a free connection (**pool exhaustion**).
+
+### Say it like this
+
+“The Lambdas were exhausting Postgres connections, we put PgBouncer in front in transaction mode.”
+
+## Caching and Redis
+
+*Part: Databases and data*
+
+A cache is a fast copy of something slow. The hard part is knowing when it’s stale.
+
+Caches exist at every layer: the browser, the CDN, the app’s memory, a shared cache server, and the database’s own buffers.
+
+**Redis** is the standard shared cache: an in-memory key-value store that’s extremely fast. It’s also used for sessions, rate-limit counters, leaderboards and simple queues. **Valkey** is an open-source fork after a licence change; **Memcached** is an older, simpler alternative.
+
+- **Cache-aside**: check the cache; on a miss, read the database and store the result. The most common pattern.
+- **Write-through**: update the cache and database together.
+- **Invalidation**: removing stale entries when data changes. Famously one of the two hard problems in computer science.
+- **Eviction**: dropping entries when memory is full, often least-recently-used (LRU).
+- **Cache stampede**: many requests miss at once and all hit the database together.
+- **Memoisation**: caching a function’s result for the same inputs.
+
+### Say it like this
+
+“We cache the product list in Redis with a five-minute TTL and bust it on update.”
+
+## Queues, background jobs and pub/sub
+
+*Part: Databases and data*
+
+Not everything should happen while the user waits.
+
+Sending emails, generating reports, resizing images: slow work goes on a **queue**. The web request adds a **message** (the **producer**) and returns immediately; separate **workers** (the **consumers**) pick messages off and process them. This is **asynchronous processing**.
+
+- **Job queues**: BullMQ (on Redis), Sidekiq, Celery, AWS SQS, Cloudflare Queues.
+- **Retries** with **backoff** when a job fails, and a **dead-letter queue** (DLQ) for messages that keep failing.
+- **At-least-once delivery**: a message may arrive twice, so consumers must be idempotent (see the resilience chapter).
+- **Pub/sub** (publish/subscribe): one message goes to many subscribers. A **topic** is the channel.
+- **Event streaming** (Apache Kafka, AWS Kinesis): an ordered, replayable log of events at huge volume.
+- **Cron jobs** or **scheduled tasks**: time-based work.
+
+### In your setup
+
+Your WordPress deploy hook is a fire-and-forget event: WordPress doesn’t wait for the build, Cloudflare queues it and works through it.
+
+## Object, block and file storage
+
+*Part: Databases and data*
+
+Three kinds of storage, each suited to different data.
+
+- **Object storage** (S3, Cloudflare R2, Backblaze B2, Azure Blob): files stored as objects in **buckets**, fetched over HTTP by key. Practically unlimited, cheap, durable. Where uploads, images, backups and exports go. Files are called **objects** or **blobs**.
+- **Block storage** (AWS EBS, Hetzner Volumes): a virtual disk attached to one server. Fast, and what databases run on.
+- **File storage** (AWS EFS, NFS, SMB shares): a shared network drive that several servers mount at once. Your Synology is a file server.
+
+Object storage terms: **presigned URLs** give time-limited upload or download access without making a bucket public; **lifecycle rules** move old objects to cheaper **storage tiers** (like S3 Glacier) or delete them; **versioning** keeps old copies of overwritten files.
+
+Durability is quoted in nines: S3 claims 99.999999999% (“eleven nines”), meaning data loss is vanishingly unlikely.
+
+### Say it like this
+
+“Don’t store uploads on the container disk, push them to R2 with a presigned URL.”
+
+## Backups, RPO and RTO
+
+*Part: Databases and data*
+
+A backup plan is defined by two numbers: how much you can lose, and how long you can be down.
+
+- **RPO** (recovery point objective): maximum acceptable data loss, in time. Nightly backups mean an RPO of up to 24 hours.
+- **RTO** (recovery time objective): maximum acceptable time to be back up.
+
+Techniques: **snapshots** (point-in-time disk copies), **logical dumps** (`pg_dump`), and **point-in-time recovery** (PITR), which replays the database’s write-ahead log to restore to any second.
+
+The **3-2-1 rule**: three copies, on two kinds of media, one off-site. **Immutable** backups can’t be changed or deleted for a set period, protecting against ransomware. **Disaster recovery** (DR) is the wider plan for losing a whole site.
+
+The rule everyone repeats: a backup you haven’t restored isn’t a backup. Scheduled **restore tests** are the proof.
+
+### In your setup
+
+Hetzner server plus nightly rsync to your NAS gives two copies with an RPO of about a day. Adding an off-site copy (like Hetzner Storage Box or R2) and occasionally restoring a volume to a test server would make it a full 3-2-1 setup.
+
+Copying a live Postgres data directory with rsync can capture it mid-write. A `pg_dump` before the rsync gives a consistent copy.
+
+## Authentication versus authorisation
+
+*Part: Security and auth*
+
+AuthN asks who you are; AuthZ asks what you’re allowed to do.
+
+**Authentication** (authN) verifies identity: passwords, magic links, passkeys, SSO. Adding a second factor is **MFA** or **2FA**: something you know plus something you have, such as a **TOTP** code from an authenticator app.
+
+**Authorisation** (authZ) decides permissions once identity is known. Models:
+
+- **RBAC** (role-based): permissions attach to roles like admin, editor, viewer.
+- **ABAC** (attribute-based): rules use attributes, such as “managers can approve expenses under £5,000 in their own cost centre”.
+- **ReBAC** (relationship-based): permissions follow relationships, like Google Docs sharing.
+
+**Passkeys** (built on **WebAuthn**) replace passwords with device-held cryptographic keys and are becoming the default. **Multi-tenancy** means one system serves many customers (**tenants**) whose data must never mix. It’s the central authZ risk in any SaaS.
+
+### In your setup
+
+estateportal.app has signup, 2FA and an admin area, so authN and RBAC are already in play. If it serves several estate agencies, tenant isolation is the thing to test hardest.
+
+## Sessions, cookies, tokens and JWTs
+
+*Part: Security and auth*
+
+After login, the server needs a way to recognise you on every request.
+
+**Session-based auth**: the server stores a session and gives the browser a random **session ID** in a **cookie**. Easy to revoke: delete the session.
+
+**Token-based auth**: the server gives the client a signed **token** that it sends in the `Authorization: Bearer …` header. Common for APIs and mobile apps.
+
+A **JWT** (JSON Web Token, said “jot”) is a popular token format: a small JSON payload (**claims**, such as user ID and expiry) plus a signature. Anyone can read it; only the issuer can create a valid one. Because the server doesn’t store it, it’s hard to revoke, so JWTs are kept short-lived and paired with a longer-lived **refresh token**.
+
+Cookie flags to know: `HttpOnly` (JavaScript can’t read it), `Secure` (HTTPS only), `SameSite` (limits cross-site sending, which blocks CSRF).
+
+### Say it like this
+
+“Access tokens are fifteen-minute JWTs; the refresh token sits in an HttpOnly cookie.”
+
+## OAuth, OpenID Connect and SSO
+
+*Part: Security and auth*
+
+OAuth lets one app access another on your behalf; OIDC adds “and here’s who logged in”.
+
+**OAuth 2.0** is about delegated *access*. When an app asks to “read your Google Calendar”, you log in at Google, approve specific **scopes**, and Google gives the app an **access token**. The app never sees your password. Roles: the **resource owner** (you), the **client** (the app), the **authorisation server** (Google), the **resource server** (the Calendar API).
+
+**OpenID Connect** (OIDC) sits on top of OAuth and adds an **ID token** describing who the user is. “Sign in with Google” is OIDC.
+
+**SSO** (single sign-on) means one login across many apps. Enterprises run an **identity provider** (**IdP**) such as Microsoft Entra ID, Okta or Google Workspace. Older enterprise SSO uses **SAML** (XML-based); newer uses OIDC. **SCIM** automatically creates and removes user accounts in apps when HR adds or removes staff.
+
+Auth platforms like Auth0, Clerk, WorkOS and Supabase Auth handle all this so you don’t build it yourself.
+
+### Say it like this
+
+“Enterprise customers will want SAML SSO and SCIM before they sign.”
+
+## Secrets management
+
+*Part: Security and auth*
+
+A secret is any value that grants access: API keys, passwords, tokens, private keys.
+
+The rules:
+
+- Never commit secrets to Git, even in private repos. Git history keeps them forever.
+- Inject them at runtime as environment variables or mounted files.
+- Store them in a **secrets manager**: HashiCorp Vault, AWS Secrets Manager, Doppler, Infisical, 1Password, or your CI or platform’s encrypted secrets store.
+- **Rotate** them regularly, and immediately after any leak.
+- Scope each one to the least access it needs.
+
+`.env` files are fine locally but belong in `.gitignore`. **Secret scanning** (GitHub has it built in) catches leaks in commits. A **leaked credential** should be treated as compromised the moment it’s public, since bots scan GitHub within minutes.
+
+### In your setup
+
+Your Cloudflare deploy hook URL living in `functions.php` is a secret in code. Moving it to `wp-config.php` or an environment variable in Coolify keeps it out of the theme files.
+
+## Least privilege, zero trust and hardening
+
+*Part: Security and auth*
+
+Assume something will be breached, and limit what it can reach.
+
+- **Least privilege**: every person and service gets the minimum access needed.
+- **Blast radius**: how much damage one compromised part can do. Least privilege shrinks it.
+- **Defence in depth**: several independent layers, so one failure isn’t fatal.
+- **Zero trust**: being inside the network grants nothing; every request is authenticated and authorised. Tools like Tailscale, Cloudflare Access and Google BeyondCorp implement it.
+- **Attack surface**: everything an attacker could reach. Closing ports and removing unused services reduces it.
+- **Hardening**: locking a server down, such as disabling password SSH, running services as non-root users, and applying updates promptly.
+- **Patch management** and **CVEs**: public IDs for known vulnerabilities (like CVE-2024-3094), rated by **CVSS** score.
+
+### In your setup
+
+You SSH in as root. Hardened setups use a named user with sudo and disable root login, so a single stolen key does less damage and actions are attributable.
+
+## Attacks everyone names
+
+*Part: Security and auth*
+
+The shorthand security people use, in one place.
+
+| Name | What happens | Main defence |
+| --- | --- | --- |
+| SQL injection | User input is run as database code. | Parameterised queries. |
+| XSS | Attacker’s script runs in other users’ browsers. | Escape output, Content Security Policy. |
+| CSRF | A malicious site triggers actions using your logged-in cookies. | SameSite cookies, CSRF tokens. |
+| SSRF | The server is tricked into fetching internal URLs. | Allow-lists for outbound requests. |
+| IDOR | Changing an ID in a URL shows someone else’s data. | Check ownership on every request. |
+| DDoS | Flooding a service with traffic. | CDN or WAF, rate limiting. |
+| Credential stuffing | Leaked passwords tried on your login. | MFA, rate limits, breach checks. |
+| Supply chain attack | A compromised dependency or build tool. | Lockfiles, pinned versions, SBOMs. |
+| Phishing | Tricking people into giving credentials. | Passkeys, training. |
+
+The **OWASP Top 10** is the standard list of web app risks. An **SBOM** (software bill of materials) is an inventory of every component in your software.
+
+## CORS and the same-origin policy
+
+*Part: Security and auth*
+
+The browser security rule that front-end developers meet most often, and the header that relaxes it.
+
+An **origin** is scheme plus domain plus port: `https://farhan.app` and `https://api.farhan.app` are different origins. The **same-origin policy** stops JavaScript on one origin from reading responses from another.
+
+**CORS** (cross-origin resource sharing) lets a server opt in: it sends headers like `Access-Control-Allow-Origin: https://farhan.app` to say which origins may read its responses. For some requests the browser first sends an `OPTIONS` **preflight** to ask permission.
+
+Key facts:
+
+- CORS is enforced by browsers only. `curl` and servers ignore it, so it isn’t an API security measure.
+- A CORS error is fixed on the *server* being called, not in your front-end code.
+- `Allow-Origin: *` can’t be combined with cookies or credentials.
+
+### Say it like this
+
+“It’s a CORS issue, the API isn’t returning the preflight headers for our staging domain.”
+
+## Compliance: SOC 2, ISO 27001 and GDPR
+
+*Part: Security and auth*
+
+Security frameworks are audits of controls, a world you already know from finance.
+
+- **SOC 2**: a US-origin audit report on controls around security, availability and confidentiality. **Type I** checks controls are designed properly at one date; **Type II** checks they operated over a period (usually 6 to 12 months). B2B customers routinely ask for it.
+- **ISO 27001**: the international standard for an information security management system, more common in the UK and Europe. Certification rather than an attestation report.
+- **Cyber Essentials**: the UK government-backed baseline scheme, often required for public sector suppliers like TfL.
+- **UK GDPR**: data protection law. Terms include **data controller**, **data processor**, **DPA** (data processing agreement), **DPIA** (impact assessment) and **subject access requests**.
+- **PCI DSS**: rules for handling card data. Most companies avoid it by letting Stripe or similar hold the card.
+
+A **penetration test** (pen test) is paid ethical hacking. A **vulnerability disclosure policy** or **bug bounty** invites outsiders to report issues.
+
+### Say it like this
+
+“We’re SOC 2 Type II and Cyber Essentials Plus; I can share the report under NDA.”
+
+## Logs, metrics and traces
+
+*Part: Observability*
+
+The three kinds of evidence engineers use to understand a running system.
+
+- **Logs**: timestamped records of events. “User 42 logged in.” Best as **structured logs** (JSON with fields) so they can be searched and filtered. Levels: debug, info, warn, error.
+- **Metrics**: numbers over time. Requests per second, CPU usage, error rate. Cheap to store, ideal for dashboards and alerts. Watch out for **cardinality**: a metric split by user ID creates millions of series.
+- **Traces**: the path of a single request through many services, broken into timed **spans**. They show where time went, for example 800ms of a 900ms request spent in one database call.
+
+**Observability** is the ability to answer new questions about your system from this data, without shipping new code. Monitoring checks known problems; observability helps with unknown ones.
+
+**OpenTelemetry** (OTel) is the open standard for collecting all three. Tools: Grafana with Prometheus, Loki and Tempo; Datadog; New Relic; Honeycomb; Sentry for errors; Better Stack.
+
+### Say it like this
+
+“Metrics show p99 latency spiking, pull a trace from that window to see which span is slow.”
+
+## Monitoring, alerting and dashboards
+
+*Part: Observability*
+
+Dashboards are for looking; alerts are for being told.
+
+Two classic checklists for what to watch:
+
+- **The four golden signals** (from Google SRE): latency, traffic, errors, saturation.
+- **RED** for services: rate, errors, duration. **USE** for resources: utilisation, saturation, errors.
+
+**Latency percentiles**: **p50** is the median; **p95** and **p99** mean 95% or 99% of requests were faster. Averages hide the slow tail that users actually feel, so engineers talk in percentiles.
+
+Alerting terms: a **threshold** triggers an alert; **paging** means waking someone up (via PagerDuty, Opsgenie or incident.io); **alert fatigue** sets in when too many alerts fire and people start ignoring them. Good practice is to alert on **symptoms** users feel (errors, slowness), not every **cause** (high CPU).
+
+**Synthetic monitoring** runs scripted checks from outside, like a fake user logging in every five minutes. **RUM** (real user monitoring) measures what actual visitors experience, including Core Web Vitals.
+
+### Say it like this
+
+“p50 is fine but p99 doubled after the deploy, some queries are hitting the cold path.”
+
+## Health checks and heartbeats
+
+*Part: Observability*
+
+Small endpoints and pings that let machines judge whether a service is alive.
+
+A **health check** is an endpoint like `/health` or `/healthz` that returns 200 when the service is fine. Load balancers and orchestrators call it constantly.
+
+Kubernetes separates the questions:
+
+- **Liveness**: is the process stuck? If not live, restart it.
+- **Readiness**: can it take traffic right now? If not ready, stop sending requests but don’t restart.
+- **Startup**: has it finished booting?
+
+A **shallow** check just confirms the process responds. A **deep** check also tests dependencies like the database, which is more informative but can cause a whole fleet to be marked unhealthy when one shared dependency blips.
+
+**Push** monitoring reverses the direction: the service sends a **heartbeat** on schedule, and silence triggers the alert. It suits things you can’t reach from outside, like cron jobs. This pattern is sometimes called a **dead man’s switch**.
+
+### In your setup
+
+Uptime Kuma does both: pull checks against your sites, and a push heartbeat from the NAS. A heartbeat at the end of your nightly rsync would tell you if a backup silently stopped running.
+
+## SLAs, SLOs, SLIs and error budgets
+
+*Part: Observability*
+
+Three nested ideas for putting a number on reliability.
+
+- **SLI** (indicator): what you measure. “Percentage of requests that succeed in under 300ms.”
+- **SLO** (objective): the internal target. “99.9% over 30 days.”
+- **SLA** (agreement): the contractual promise to customers, with **service credits** if missed. Always looser than the SLO so you have a margin.
+
+Availability in “nines”:
+
+| Target | Allowed downtime per 30 days |
+| --- | --- |
+| 99% (two nines) | about 7.2 hours |
+| 99.9% (three nines) | about 43 minutes |
+| 99.99% (four nines) | about 4.3 minutes |
+| 99.999% (five nines) | about 26 seconds |
+
+The gap between 100% and the SLO is the **error budget**. While budget remains, teams ship quickly; when it’s spent, they slow down and fix reliability. It turns an argument into a number. **Burn rate** is how fast the budget is being used.
+
+### In your setup
+
+This will feel familiar from TfL contracts: an SLA with service credits is structurally the same as a performance regime with deductions for missed mileage or punctuality.
+
+## On-call, incidents and postmortems
+
+*Part: Observability*
+
+How teams respond when something breaks, and learn from it afterwards.
+
+- **On-call**: a rota of engineers reachable out of hours. A **rotation** or **schedule** assigns primary and secondary.
+- **Incident**: an unplanned disruption. Graded by **severity**: **SEV1** or **P1** is critical (major outage), down to SEV4 for minor issues.
+- **Incident commander**: coordinates the response; others investigate. A **status page** updates customers.
+- **Mitigate** first (stop the bleeding, often by rolling back), then find the **root cause**.
+- **MTTD**, **MTTA**, **MTTR**: mean time to detect, acknowledge, and resolve or recover.
+- **Runbook** or **playbook**: step-by-step instructions for known problems.
+- **Postmortem** (or incident review, retrospective): a written account of what happened, why, and follow-up **action items**. **Blameless** postmortems focus on systems, not individuals.
+
+**Chaos engineering** deliberately breaks things in controlled ways to check resilience. **Game days** are rehearsed incidents.
+
+### Say it like this
+
+“Declaring a SEV2, I’m IC. We’ve rolled back and error rates are recovering, postmortem on Thursday.”
+
+## Monoliths, microservices and in between
+
+*Part: System design*
+
+The biggest architecture debate, which is really about team size.
+
+A **monolith** is one application deployed as a single unit. Simple to build, test and deploy. Most successful products start this way. A **modular monolith** keeps one deployment but enforces clean internal boundaries.
+
+**Microservices** split the system into many small services, each owning its data and deployed independently, talking over the network. Benefits: teams work and deploy independently, services scale separately. Costs: network failures, distributed debugging, data consistency, much more infrastructure.
+
+Related terms:
+
+- **Distributed monolith**: microservices so tangled they must deploy together. The worst of both.
+- **Service boundaries** and **bounded contexts** (from domain-driven design, **DDD**): where to cut.
+- **Conway’s law**: systems end up mirroring the communication structure of the organisation that builds them.
+- **Strangler fig**: replacing an old system gradually by routing features to new code one piece at a time.
+
+### Say it like this
+
+“We’re twelve engineers, a modular monolith is plenty. Microservices would be solving a people problem we don’t have.”
+
+## Scaling up, scaling out, and statelessness
+
+*Part: System design*
+
+Two ways to handle more load, and the property that makes the second one possible.
+
+**Vertical scaling** (scaling up): a bigger machine. More CPU, more RAM. Simple, no code changes, but has a ceiling and a single point of failure.
+
+**Horizontal scaling** (scaling out): more machines behind a load balancer. No real ceiling and more resilient, but the app must be **stateless**.
+
+**Stateless** means any instance can handle any request, because nothing important lives in one instance’s memory or disk. Sessions go to Redis or a database, uploads to object storage. **Stateful** components (databases, caches) are scaled differently and more carefully.
+
+**Autoscaling** adds and removes instances automatically based on metrics such as CPU or queue length. **Elasticity** is the ability to grow and shrink with demand. **Bottleneck**: whichever component limits the whole system, often the database.
+
+### In your setup
+
+Your VPS scales vertically: upgrading the Hetzner plan is scaling up. Your Astro site on Cloudflare scales horizontally for free, because static files are perfectly stateless.
+
+## REST, GraphQL, gRPC and API design
+
+*Part: System design*
+
+The main styles services use to talk to each other.
+
+**REST**: resources at URLs, acted on with HTTP methods. `GET /posts/12`, `POST /posts`. The default for public APIs. Usually JSON. Documented with an **OpenAPI** (formerly Swagger) specification.
+
+**GraphQL**: one endpoint where the client sends a query describing exactly which fields it wants. Avoids over-fetching and many round trips; adds complexity and caching challenges. WordPress has it via WPGraphQL.
+
+**gRPC**: fast binary protocol using **Protocol Buffers**, popular between internal microservices.
+
+**tRPC**: type-safe calls between a TypeScript front end and back end, no schema file needed.
+
+API design terms: **endpoint**, **payload**, **pagination** (offset-based versus cursor-based), **versioning** (`/v1/`), **breaking change**, **API gateway** (a front door handling auth, rate limits and routing for many APIs), **SDK** (a client library wrapping an API), and **contract** (the agreed shape of requests and responses).
+
+### In your setup
+
+Astro pulling posts from the WordPress REST API at build time is a classic headless pattern: the CMS is just an API provider.
+
+## Webhooks, polling and websockets
+
+*Part: System design*
+
+Three ways to find out that something changed somewhere else.
+
+- **Polling**: ask repeatedly, “anything new?” Simple, wasteful, slow to notice. **Long polling** holds the request open until there’s news.
+- **Webhooks**: the other system calls *your* URL when something happens. Stripe calling your server on payment is the textbook case. Receivers should verify a **signature**, respond quickly, and handle duplicates.
+- **WebSockets**: a persistent two-way connection for real-time features like chat or live dashboards.
+- **Server-sent events** (SSE): one-way streaming from server to browser. How AI chat responses usually stream in.
+
+Webhooks are sometimes called “reverse APIs” or “HTTP callbacks”. A **deploy hook** is simply a webhook that triggers a build.
+
+### In your setup
+
+Your `functions.php` watching post status and calling Cloudflare is WordPress *sending* a webhook. Payload CMS’s “native webhooks”, which you researched, is the same idea without custom code.
+
+## Timeouts, retries, idempotency and rate limits
+
+*Part: System design*
+
+The defensive habits that stop one slow or failing service from taking everything down.
+
+- **Timeouts**: never wait forever for another service. Without them, requests pile up and exhaust resources.
+- **Retries** with **exponential backoff** and **jitter**: try again after 1s, 2s, 4s, with some randomness so clients don’t all retry at the same instant (a **thundering herd**).
+- **Idempotency**: doing an operation twice has the same effect as once. Essential when retrying anything that changes data. APIs accept an **idempotency key** so a retried payment isn’t charged twice.
+- **Rate limiting**: capping requests per user or IP per time window, returning HTTP 429. Algorithms: **token bucket**, **sliding window**. **Throttling** slows rather than rejects.
+- **Circuit breaker**: after repeated failures, stop calling a service for a while and fail fast instead.
+- **Graceful degradation**: when a dependency fails, offer a reduced experience rather than an error page.
+- **Backpressure**: signalling upstream to slow down when you’re overwhelmed.
+
+### Say it like this
+
+“The webhook handler needs to be idempotent, Stripe retries on timeout and we double-credited two accounts.”
+
+## Redundancy and single points of failure
+
+*Part: System design*
+
+Reliability comes from having spares, and knowing which parts don’t have one.
+
+- **Single point of failure** (SPOF): one component whose failure takes the whole system down.
+- **Redundancy**: duplicate components so one can fail. **N+1** means one more than you need.
+- **Active-active**: all copies serve traffic. **Active-passive**: a standby waits to take over.
+- **Fault tolerance**: continuing to work through failures. **Fault isolation**: containing a failure to one area (also called **bulkheads**, after ship compartments).
+- **Cascading failure**: one overloaded part pushes load onto others until they all fall over.
+- **Dependencies**: your uptime can’t exceed that of the services you rely on. If two services you depend on are each 99.9%, your ceiling is about 99.8%.
+
+### In your setup
+
+The single VPS is a SPOF for everything on it: Umami, Uptime Kuma and the WordPress CMS. farhan.app itself survives because the static build lives on Cloudflare. It’s a sensible trade-off for personal projects, and worth knowing how to say.
+
+## Consistency trade-offs and CAP
+
+*Part: System design*
+
+Once data lives in more than one place, you choose between always-correct and always-available.
+
+**Strong consistency**: every read sees the latest write. **Eventual consistency**: copies may briefly disagree but will converge. DNS, CDN caches and read replicas are all eventually consistent.
+
+The **CAP theorem** says that during a network **partition** (some machines can’t reach others), a distributed system must choose between **consistency** (refuse requests it can’t answer correctly) and **availability** (answer anyway, possibly with stale data). Banks lean to consistency; social feeds lean to availability.
+
+Other terms: **read-your-writes** (at least you see your own changes immediately), **race condition** (outcome depends on timing), **optimistic locking** (detect conflicting edits with a version number), **distributed transaction** and the **saga** pattern (a chain of steps with compensating actions if one fails, since a single database transaction can’t span services).
+
+### Say it like this
+
+“The count is eventually consistent, the search index updates a few seconds after the write.”
+
+## Event-driven architecture
+
+*Part: System design*
+
+Instead of services calling each other, they announce what happened and let others react.
+
+In a **request-driven** system, the order service calls the email service, the inventory service and the analytics service directly. In an **event-driven** system, the order service publishes an **event** (“OrderPlaced”) and each interested service subscribes. The publisher doesn’t know or care who’s listening.
+
+This **decouples** services: new features can react to existing events without changing the original code. The cost is that flows become harder to follow and debug.
+
+- **Event bus** or **broker**: the infrastructure carrying events (Kafka, RabbitMQ, AWS EventBridge).
+- **Event sourcing**: storing every change as an event and deriving current state from the full history. Closely resembles a general ledger rebuilt from journals.
+- **CQRS**: separate models for writing and reading data.
+- **Outbox pattern**: save the event in the same database transaction as the data change, then publish it, so neither is lost.
+- **Choreography** (services react independently) versus **orchestration** (a coordinator directs each step).
+
+### Say it like this
+
+“Billing just subscribes to the SubscriptionChanged event, no need to touch the accounts service.”
+
+## Agile, sprints and tickets
+
+*Part: Team jargon and process*
+
+How engineering work is planned and tracked.
+
+- **Agile**: working in short cycles with frequent feedback, rather than one big plan (**waterfall**).
+- **Scrum**: an Agile framework with fixed **sprints** (usually two weeks), **sprint planning**, a daily **stand-up**, a **sprint review** and a **retro** (retrospective).
+- **Kanban**: continuous flow across a board (to do, in progress, done), with **WIP limits** on work in progress.
+- **Backlog**: the prioritised list of work. **Grooming** or **refinement** keeps it tidy.
+- **Ticket**, **issue** or **story**: one unit of work, often in Jira or Linear. An **epic** groups related stories.
+- **Story points**: relative effort estimates. **Velocity**: points completed per sprint.
+- **Acceptance criteria** and **definition of done**: when a ticket counts as finished.
+- **Spike**: a time-boxed investigation to reduce uncertainty.
+- **MVP**: minimum viable product. **PoC**: proof of concept.
+
+### Say it like this
+
+“Let’s do a spike this sprint before we point the migration epic.”
+
+## RFCs, ADRs and design docs
+
+*Part: Team jargon and process*
+
+How engineering teams decide things in writing.
+
+- **Design doc** or **tech spec**: describes a proposed system before it’s built, covering goals, non-goals, options considered and the chosen approach.
+- **RFC** (request for comments): a design doc circulated for feedback. Borrowed from the documents that define internet standards.
+- **ADR** (architecture decision record): a short, permanent note of one decision, its context and consequences. Stored in the repo so future engineers know *why*.
+- **PRD** (product requirements document): the product side’s “what and why”, which engineering responds to with a design doc.
+- **Trade-off**: the word that should appear in every one of these documents.
+- **Non-functional requirements** (NFRs): performance, security, availability, cost. The “-ilities”: scalability, maintainability, observability.
+
+### In your setup
+
+Your note on Payload versus WordPress (“migration not justified unless WordPress becomes a maintenance burden”) is an ADR in all but name. Writing those down in a `docs/adr/` folder is a small habit that reads as very senior.
+
+## Everyday engineer slang
+
+*Part: Team jargon and process*
+
+The informal words you’ll hear in Slack and meetings.
+
+| Term | Meaning |
+| --- | --- |
+| LGTM | “Looks good to me.” An approval. |
+| Nit | A minor, optional review comment. |
+| Ship / ship it | Release. |
+| Prod | Production. |
+| Hotfix | An urgent fix straight to production. |
+| Tech debt | Shortcuts that make future work slower. Taken on deliberately or not. |
+| Greenfield / brownfield | Starting fresh versus working within existing systems. |
+| Legacy | Old code still in use, often with no tests or original authors. |
+| Bikeshedding | Arguing about trivial details while ignoring hard ones. |
+| Yak shaving | A chain of side tasks needed before the real task. |
+| Footgun | A feature that makes it easy to hurt yourself. |
+| Dogfooding | Using your own product internally. |
+| Happy path / edge case | The normal flow versus unusual inputs. |
+| Boilerplate | Repetitive setup code. |
+| Rubber ducking | Explaining a problem out loud to find the answer. |
+| Works on my machine | Environment-specific bug, usually config or versions. |
+| Blast radius | How much a failure or change could affect. |
+| Toil | Manual, repetitive operational work. |
+| Bus factor | How many people could leave before a project stalls. |
+| Vendor lock-in | Being hard to move away from a provider. |
+| Build vs buy | Make it yourself or pay for a product. |
+| Heisenbug | A bug that disappears when you try to observe it. |
+
+## Terms that are often mixed up
+
+*Part: Team jargon and process*
+
+Pairs that sound similar but mean different things. Getting these right is where credibility shows.
+
+| Often confused | The difference |
+| --- | --- |
+| Workflow vs integration | A GitHub workflow is automation in your repo. An integration is a connected external service. |
+| Deploy vs release | Deploying puts code on servers; releasing makes a feature available to users. |
+| Continuous delivery vs deployment | Ready to release on demand versus released automatically. |
+| Authentication vs authorisation | Who you are versus what you may do. |
+| Latency vs throughput | How long one request takes versus how many are handled per second. |
+| Availability vs durability | Can I use it now, versus is my data safe long term. |
+| Backup vs replica | A replica copies mistakes instantly; only a backup lets you go back in time. |
+| Container vs image | A running instance versus the packaged template. |
+| Ingress (networking) vs Ingress (Kubernetes) | Inbound traffic in general versus the K8s routing resource. |
+| Proxy vs load balancer | Overlapping; a load balancer’s defining job is spreading traffic across copies. |
+| Encryption vs hashing | Encryption is reversible with a key; hashing is one-way (how passwords are stored). |
+| Library vs framework | You call a library; a framework calls your code. |
+| Registrar vs DNS host | Where the domain is bought versus where its records are served. |
+| Uptime vs SLO | A measurement versus a target for it. |
+
+## Describing your own setup like an engineer
+
+*Part: Team jargon and process*
+
+Putting it together: the same system, said three ways.
+
+Engineers describe systems from the outside in, naming each hop and its responsibility. Here’s your own setup at three levels of detail.
+
+**The one-liner:**
+
+“It’s a headless WordPress feeding a static Astro site on Cloudflare Pages, with a self-hosted PaaS on a Hetzner box for the stateful bits.”
+
+**The thirty-second version:**
+
+“WordPress runs in Docker on a Hetzner VPS managed by Coolify, with Traefik doing TLS and host-based routing. It’s locked down to the API only. On publish, a hook triggers a Cloudflare Pages build, so the public site is fully static on the edge and doesn’t depend on the VPS being up. Analytics and uptime monitoring are self-hosted on the same box.”
+
+**The ops answer, if someone asks about resilience:**
+
+“The VPS is a single point of failure, but only for the CMS and internal tools, not the live site. SSH is only reachable over Tailscale. Volumes are rsynced nightly to a NAS, so RPO is about a day. Next steps would be an off-site copy, consistent database dumps, and defining the server in Terraform so I can rebuild it quickly.”
+
+Notice the pattern: what it is, where it runs, how traffic reaches it, what happens when it fails, and what you’d improve. That structure works for any system.
+
+## Glossary
+
+*Part: Reference*
+
+Quick definitions. Filter to jump to a term.
+
+- **ACME** — Protocol used to request and renew TLS certificates automatically.
+- **API gateway** — Front door for APIs that handles routing, auth and rate limits.
+- **Artifact** — A file produced by a build, ready to deploy or download.
+- **Autoscaling** — Adding or removing instances automatically based on load.
+- **Availability zone** — An isolated data centre group within a cloud region.
+- **Backoff** — Waiting progressively longer between retries.
+- **Bastion host** — A hardened server used as the gateway into a private network.
+- **Blue-green** — Deploy strategy running old and new side by side, then switching traffic.
+- **Canary** — Releasing to a small share of traffic first.
+- **CDN** — Network of edge servers caching content near users.
+- **CIDR** — Notation for IP address ranges, like 10.0.0.0/16.
+- **Circuit breaker** — Stops calling a failing dependency for a while.
+- **Cold start** — Delay when a serverless function starts from nothing.
+- **Container** — An isolated process sharing the host’s kernel.
+- **Control plane / data plane** — The part that manages configuration versus the part that carries real traffic.
+- **Cron** — Time-based job scheduler, and its schedule syntax.
+- **Daemon** — A background process on a server, often ending in d (sshd, dockerd).
+- **DDoS** — Attack that floods a service with junk traffic to knock it offline.
+- **Docker** — The most common tool for building and running containers.
+- **Drift** — Live systems no longer matching their definition in code.
+- **Egress** — Outbound traffic, and the fees clouds charge for it.
+- **Ephemeral** — Short-lived and disposable, such as preview environments or container disks.
+- **Failover** — Switching to a standby when the primary fails.
+- **Fan-out** — One event triggering many parallel tasks.
+- **Hypervisor** — Software that runs virtual machines.
+- **Idempotent** — Safe to repeat; the result is the same.
+- **Immutable infrastructure** — Replacing servers rather than modifying them in place.
+- **Ingress** — Inbound traffic; in Kubernetes, the HTTP routing resource.
+- **Kernel** — The core of an operating system, shared by containers on a host.
+- **Kubernetes** — The most popular orchestrator: runs containers across many machines and keeps them running.
+- **Latency** — Time for one request to complete.
+- **Load balancer** — Distributes traffic across several backends.
+- **Mesh VPN** — A VPN where devices connect directly to each other, like Tailscale.
+- **Middleware** — Code that runs between receiving a request and handling it, such as auth checks.
+- **Multi-tenant** — One system serving many customers with separated data.
+- **Namespace** — An isolating boundary for names or resources.
+- **Observability** — Understanding a system’s internals from its outputs.
+- **Origin** — The source server behind a CDN; in browsers, scheme plus host plus port.
+- **p99** — The latency 99% of requests beat.
+- **Payload** — The data carried in a request or message body.
+- **PoP** — Point of presence, a CDN edge location.
+- **Postgres** — The most popular open-source relational (SQL) database.
+- **Provisioning** — Creating and setting up infrastructure.
+- **Reconciliation** — Continuously making actual state match desired state.
+- **Redis** — In-memory key-value store used for caching, sessions and queues.
+- **Registry** — Storage for container images.
+- **Replica** — A copy of a service or database.
+- **Reverse proxy** — Server that receives traffic and forwards it to apps behind it.
+- **Runbook** — Step-by-step guide for an operational task or incident.
+- **Runner** — Machine that executes CI jobs.
+- **Runtime** — The environment code executes in, such as Node.js, or a container runtime.
+- **Sharding** — Splitting data across several databases by key.
+- **Sidecar** — Helper container running beside the main app container.
+- **SLO** — Internal reliability target.
+- **SSH** — Secure shell: opens an encrypted terminal on a remote machine.
+- **Stateless** — Keeps no data between requests in the instance itself.
+- **TCP** — Delivery method that checks every packet arrives, in order. Most of the web uses it.
+- **Throughput** — Amount of work handled per unit of time.
+- **TLS termination** — The point where encrypted traffic is decrypted.
+- **Traefik** — A reverse proxy that configures itself from container labels; what Coolify uses.
+- **UDP** — Fast delivery method with no guarantees, used where speed beats completeness.
+- **Upstream / downstream** — The services you depend on versus those that depend on you.
+- **VPC** — Private network inside a cloud provider.
+- **WAF** — Web application firewall that filters malicious HTTP requests.
+- **Webhook** — An HTTP call made to your URL when an event happens elsewhere.
+- **YAML** — Indentation-based config format used by Compose, Kubernetes and CI.

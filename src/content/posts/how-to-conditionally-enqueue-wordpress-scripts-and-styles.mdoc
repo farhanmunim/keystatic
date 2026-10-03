@@ -1,0 +1,71 @@
+---
+title: "How to conditionally enqueue WordPress scripts and styles"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Serve only the assets you need on each page, slash load times, and boost core web vitals with a compact conditional-enqueue pattern any theme can adopt."
+date: 2025-06-03T23:08
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+## Why conditional enqueuing matters
+
+Each extra script or style sheet is another HTTP request, more bytes over the wire, and a longer main-thread execution time. Core Web Vitals – especially **Largest Contentful Paint (LCP)** and **Interaction to Next Paint (INP)** penalize unnecessary assets. By enqueueing files **only when a post explicitly requests them**, you deliver leaner markup and better metrics without resorting to heavy optimizers or critical-CSS plugins.
+
+## Recommended setup
+
+1. Install [MetaBox Lite](https://metabox.io/lite/) or a similar plugin which enables custom fields
+2. Create a `switch` field for each feature, for example:
+   - Switch 1 – Label: *Enable Code Box* → Field ID: `advance_codebox`
+   - Switch 2 – Label: *Enable read progress bar* → Field ID: `progress_bar`…
+3. Assign the field group to *Posts* (or any CPT).
+4. Check a toggle → corresponding script loads; leave unchecked → script never touches the DOM.
+
+> **Note:** Pro-tip: Most field plugins (ACF, CMB2, Carbon Fields) expose a similar boolean control.
+
+Example of my setup here:
+
+![](/uploads/image.png)
+
+## The code snippet
+
+Here is an extract of the `functions.php` in my child theme:
+
+```php
+<?php
+if ( ! defined( 'ABSPATH' ) ) exit;
+
+/* Helper */
+function conditional_enqueue( $field, $type, $handle, $path ) {
+    $active = get_post_meta( get_the_ID(), $field, true );
+    if ( $active == 1 || $active === true ) {
+        $uri  = get_stylesheet_directory_uri() . $path;
+        $ver  = filemtime( get_stylesheet_directory() . $path );
+        $type === 'script'
+            ? wp_enqueue_script( $handle, $uri, [], $ver, true )
+            : wp_enqueue_style ( $handle, $uri, [], $ver       );
+    }
+}
+
+/* Master hook */
+add_action( 'wp_enqueue_scripts', function () {
+
+    /* Conditional modules */
+    conditional_enqueue( 'advance_codebox',   'script', 'prism',        '/includes/vendor/prism.js' );
+    conditional_enqueue( 'force_darkmode',    'script', 'darkmode',     '/assets/js/darkmode.js'   );
+    conditional_enqueue( 'table_of_contents', 'script', 'toc',          '/assets/js/toc.js'        );
+    conditional_enqueue( 'read_progress_bar', 'script', 'progress-bar', '/assets/js/progress-bar.js');
+    conditional_enqueue( 'social_share',      'script', 'social-share', '/assets/js/social-share.js');
+
+}, 15 );
+```
+
+| Block | Purpose | Payoff |
+| --- | --- | --- |
+| `conditional_enqueue()` | Reusable helper; asks *“Is this toggle on?”* then enqueues asset | One liner per module, no repeated logic |
+| `filemtime()` | Grabs file’s last-modified timestamp for the `ver` arg | Busts cache only when the file actually changes |
+| Reusable path pattern | `get_stylesheet_directory_uri()` + relative path | Keeps child themes modular |

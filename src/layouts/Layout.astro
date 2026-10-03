@@ -30,6 +30,7 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{pageTitle}</title>
     {description && <meta name="description" content={description} />}
+    {settings.noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={canonical} />
     {settings.favicon && <link rel="icon" href={settings.favicon} />}
     <meta property="og:type" content="website" />

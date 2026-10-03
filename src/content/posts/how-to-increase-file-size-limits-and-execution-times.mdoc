@@ -1,0 +1,27 @@
+---
+title: "How to increase file size limits and execution times"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Want to increase the file upload size or execution times? Here’s an easy way!"
+date: 2024-02-13T14:44
+featured: false
+categories:
+  - "technical"
+tags:
+  - "wordpress"
+---
+
+Add the following inside of a custom code snippet or a child theme:
+
+```php
+@ini_set( 'upload_max_size' , '120M' );
+@ini_set( 'post_max_size', '120M');
+@ini_set( 'max_execution_time', '300' );
+```
+
+1. `@ini_set( 'upload_max_size' , '120M' );`: This line sets the maximum size of an uploaded file. In this case, it’s being set to 120 megabytes (`120M`). This affects the maximum size allowed for individual files uploaded through PHP forms, such as file upload fields in WordPress media uploader or other form submissions.
+2. `@ini_set( 'post_max_size', '120M');`: This line sets the maximum size of POST data that PHP will accept. This includes form submissions and file uploads. It’s important to note that `post_max_size` should typically be larger than `upload_max_size` to accommodate the entire form submission, including any uploaded files. In this case, it’s also set to 120 megabytes (`120M`).
+3. `@ini_set( 'max_execution_time', '300' );`: This line sets the maximum time in seconds that a script is allowed to run before it is terminated by the server. Here, it’s set to 300 seconds, or 5 minutes. This is useful for ensuring that long-running scripts, such as those performing complex operations or handling large amounts of data, have enough time to complete without being prematurely terminated.
+
+Credits to [WPBeginner](https://www.wpbeginner.com/wp-tutorials/how-to-fix-the-link-you-followed-has-expired-error-in-wordpress/) for this solution

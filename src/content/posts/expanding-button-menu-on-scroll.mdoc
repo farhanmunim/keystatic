@@ -1,0 +1,186 @@
+---
+title: "Expanding button menu on scroll"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "I came across this really cool expanding button menu on scroll on the Assemble site and thought I’d try to re-create it with Bricks…here it is!"
+date: 2024-06-08T23:26
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+Source of inspiration: [onassemble.com](https://www.onassemble.com/)
+
+Here is the version I re-created using Bricks (you can simply copy and paste into your builder panel):
+
+```json
+{
+  "content": [
+    {
+      "id": "uqxsvx",
+      "name": "div",
+      "parent": "sbyobc",
+      "children": ["flqgbh", "rznryy", "ludrnf"],
+      "settings": { "_cssGlobalClasses": ["ozwjpd"], "tag": "ul" },
+      "label": "Component"
+    },
+    {
+      "id": "flqgbh",
+      "name": "code",
+      "parent": "uqxsvx",
+      "children": [],
+      "settings": {
+        "code": "<script>\ndocument.addEventListener('DOMContentLoaded', () => {\n    const menuWrapper = document.querySelector('.expanding-cta__menu-wrapper');\n\n    window.addEventListener('scroll', () => {\n        if (window.scrollY > 36) {\n            menuWrapper.classList.add('expanded');\n        } else {\n            menuWrapper.classList.remove('expanded');\n        }\n    });\n});\n</script>\n\n\n<style>\n  \n  .expanding-cta > *{\n    list-style: none;\n  }\n.expanding-cta__menu-wrapper {\n    transition: width 0.2s ease;\n}\n\n.expanding-cta__menu-wrapper.expanded {\n  width: 223.453px; /*Manually update*/\n  transition: width 0.5s ease;\n}\n\n.expanding-cta__link {\n    transition: opacity 1s ease;\n}\n\n.expanding-cta__menu-wrapper.expanded .expanding-cta__link {\n  opacity: 1;\n  animation: expandMenu 1s forwards;\n}\n\n@keyframes expandMenu {\n    from {\n        opacity: 0;\n    }\n    to {\n        opacity: 1;\n    }\n}\n</style>",
+        "executeCode": true,
+        "signature": "e5c433a6a3952cb76e9461d96be0a4ae",
+        "user_id": 1,
+        "time": 1717886660,
+        "parseDynamicData": true,
+        "supressPhpErrors": true,
+        "noRoot": true
+      }
+    },
+    {
+      "id": "rznryy",
+      "name": "div",
+      "parent": "uqxsvx",
+      "children": ["nocknl", "frybyf", "dsgylr"],
+      "settings": { "_cssGlobalClasses": ["nrmbse"], "tag": "ul" },
+      "label": "Menu"
+    },
+    {
+      "id": "nocknl",
+      "name": "div",
+      "parent": "rznryy",
+      "children": ["dpbrfo"],
+      "settings": { "tag": "li" },
+      "label": "Link Wrapper"
+    },
+    {
+      "id": "dpbrfo",
+      "name": "text-link",
+      "parent": "nocknl",
+      "children": [],
+      "settings": {
+        "text": "Product",
+        "_cssGlobalClasses": ["ycypdk"],
+        "link": { "type": "external", "url": "#" }
+      }
+    },
+    {
+      "id": "frybyf",
+      "name": "div",
+      "parent": "rznryy",
+      "children": ["kctbos"],
+      "settings": { "tag": "li" },
+      "label": "Link Wrapper"
+    },
+    {
+      "id": "kctbos",
+      "name": "text-link",
+      "parent": "frybyf",
+      "children": [],
+      "settings": {
+        "text": "Pricing",
+        "_cssGlobalClasses": ["ycypdk"],
+        "link": { "type": "external", "url": "#" }
+      }
+    },
+    {
+      "id": "dsgylr",
+      "name": "div",
+      "parent": "rznryy",
+      "children": ["lhktee"],
+      "settings": { "tag": "li" },
+      "label": "Link Wrapper"
+    },
+    {
+      "id": "lhktee",
+      "name": "text-link",
+      "parent": "dsgylr",
+      "children": [],
+      "settings": {
+        "text": "Login",
+        "_cssGlobalClasses": ["ycypdk"],
+        "link": { "type": "external", "url": "#" }
+      }
+    },
+    {
+      "id": "ludrnf",
+      "name": "div",
+      "parent": "uqxsvx",
+      "children": ["jjyeus"],
+      "settings": { "tag": "li" },
+      "label": "CTA Wrapper"
+    },
+    {
+      "id": "jjyeus",
+      "name": "text-link",
+      "parent": "ludrnf",
+      "children": [],
+      "settings": {
+        "text": "Start free",
+        "_cssGlobalClasses": ["fllrsv"],
+        "link": { "type": "external", "url": "#" }
+      },
+      "themeStyles": [],
+      "label": "CTA"
+    }
+  ],
+  "source": "bricksCopiedElements",
+  "sourceUrl": "https://test.local",
+  "version": "1.9.8",
+  "globalClasses": [
+    {
+      "id": "ozwjpd",
+      "name": "expanding-cta",
+      "settings": {
+        "_display": "flex",
+        "_background": { "color": { "raw": "#000" } },
+        "_typography": {
+          "color": { "raw": "#fff" },
+          "font-size": "1.4rem",
+          "letter-spacing": "0.01em"
+        },
+        "_border": {
+          "radius": { "top": "999px", "right": "999px", "bottom": "999px", "left": "999px" }
+        },
+        "_overflow": "hidden",
+        "_position": "sticky",
+        "_top": "80px",
+        "_padding": { "top": "1.6rem", "right": "1rem", "bottom": "1.6rem", "left": "1rem" },
+        "_margin": { "top": "unset", "bottom": "unset" }
+      }
+    },
+    {
+      "id": "nrmbse",
+      "name": "expanding-cta__menu-wrapper",
+      "settings": {
+        "_display": "flex",
+        "_overflow": "hidden",
+        "_width": "0",
+        "_padding": { "left": "unset" }
+      }
+    },
+    {
+      "id": "ycypdk",
+      "name": "expanding-cta__link",
+      "settings": { "_padding": { "left": "1.6rem", "right": "1.6rem" }, "_opacity": "0" }
+    },
+    {
+      "id": "fllrsv",
+      "name": "expanding-cta__link--standout",
+      "settings": {
+        "_typography": { "color": { "raw": "#F1FD82" } },
+        "_padding": { "left": "1.6rem", "right": "1.6rem" }
+      }
+    }
+  ],
+  "globalElements": []
+}
+```
+
+> **Warning:** You need to manually set the expanded width of the inner-menu to ensure the transition works (you can automate this with JavaScript but it does not work effectively).

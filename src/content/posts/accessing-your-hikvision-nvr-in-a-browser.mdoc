@@ -1,0 +1,55 @@
+---
+title: "Accessing your HikVision NVR in a browser"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Learn how to access your HikVision NVR directly through your browser using HikVision’s recommended method and also an alternative."
+date: 2024-12-30T00:58
+featured: false
+categories:
+  - "technical"
+tags:
+  - "networking"
+---
+
+## Why access your HikVision NVR in a browser?
+
+Managing your HikVision NVR through a browser allows you to access advanced settings and features conveniently. Whether you need to reboot the system, manage detection zones, configure network settings, or view live feeds, the browser interface provides a user-friendly way to take full control of your device.
+
+## What is the SADP tool?
+
+The [SADP (Search Active Device Protocol) tool](https://www.hikvision.com/uk/support/tools/hitools/clea8b3e4ea7da90a9/) is a free utility provided by HikVision that helps you discover HikVision devices on your network. It allows you to view and edit network settings, making it ideal for initial setup or troubleshooting connectivity issues.
+
+## How to use the SADP tool
+
+1. Download and install the [SADP tool](https://www.hikvision.com/uk/support/tools/hitools/clea8b3e4ea7da90a9/) from HikVision’s official website.
+2. Open the tool, and it will automatically detect all HikVision devices on your local network.
+3. If `auto DHCP` is checked for your NVR, uncheck this (you may need to enter the system’s password to update) else skip to next step.
+4. Double click on the IP address of your NVR from the list.
+5. Simply enter your system’s username and password – that should be all!
+
+\<\<– Images coming soon –\>\>
+
+## Alternative method
+
+If you prefer not to use the SADP tool or if your HikVision system is not appearing in the SADP tool eventhough everything is connected and working, here’s how you can achieve the same result using an alternative method:
+
+1. Use Advanced IP Scanner:
+   - Download and run [Advanced IP Scanner](https://www.advanced-ip-scanner.com/) to scan your local network.
+   - Identify your NVR by looking for its manufacturer (e.g., HikVision) or MAC address in the scan results.
+   - Note the NVR’s IP address.
+2. Use Nmap to Discover Ports:
+   - Install [Nmap](https://nmap.org/)
+   - Open command prompt or a terminal and enter the following to run a port scan for the NVR’s IP address: `nmap -p- <NVR IP>` where `<NVR IP>` is the IP address noted down in the previous step.
+   - This will reveal the open ports on your NVR, such as:
+     - HTTP: `Port 80 or 90`
+     - HTTPS: `Port 443`
+     - RTSP: `Port 554`
+3. Use the IP address and port details to access the system login page
+4. Simply enter your system’s username and password – that should be all!
+
+\<\<– Images coming soon –\>\>
+
+## Final thoughts
+
+Accessing your HikVision NVR through a browser is a powerful way to maintain control of your surveillance system. While the SADP tool simplifies the process, alternative methods like Advanced IP Scanner and Nmap provide flexibility for tech-savvy users. Keep this guide handy for quick reference when managing your NVR.

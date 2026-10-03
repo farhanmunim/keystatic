@@ -1,0 +1,88 @@
+---
+title: "Remember active nested tab in Bricks"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Want to ensure a clicked Bricks (nestable) tab is still “clicked” (active) on page refresh? Here’s my simple JS solution!"
+date: 2025-01-13T15:22
+featured: false
+categories:
+  - "technical"
+tags:
+  - "bricks-builder"
+---
+
+> **Warning:** This works fine with Bricks 1.11.1.1, but you should check the functionality if Bricks has a new update.
+
+Copy and paste the snippet below into the **Body (footer) scripts** area and **not** a code block. Make sure to replace `.my-element` with your element’s class:
+
+```js
+function setActiveTabOnPageLoad() {
+    const tabTitles = document.querySelectorAll(".my-element .tab-title");
+    const tabPanes = document.querySelectorAll(".my-element .tab-pane");
+    let savedTabIndex = localStorage.getItem("my-tab");
+
+    // Use fallback to the first tab if no valid index is found
+    if (savedTabIndex === null || isNaN(savedTabIndex) || !tabTitles[savedTabIndex]) {
+        savedTabIndex = 0; // Default to the first tab
+        localStorage.setItem("my-tab", savedTabIndex); // Set the default in local storage
+    } else {
+        savedTabIndex = parseInt(savedTabIndex, 10);
+    }
+
+    // Reset all tabs and panes first
+    tabTitles.forEach((tab) => {
+        tab.classList.remove("brx-open");
+        tab.setAttribute("aria-pressed", "false");
+    });
+    tabPanes.forEach((pane) => {
+        pane.classList.remove("brx-open");
+    });
+
+    // Activate the tab and corresponding pane matching the saved or fallback index
+    const activeTab = tabTitles[savedTabIndex];
+    const activePane = tabPanes[savedTabIndex];
+    if (activeTab) {
+        activeTab.classList.add("brx-open");
+        activeTab.setAttribute("aria-pressed", "true");
+    }
+    if (activePane) {
+        activePane.classList.add("brx-open");
+    }
+}
+
+function addClickHandlersToTabs() {
+    const tabTitles = document.querySelectorAll(".my-element .tab-title");
+    const tabPanes = document.querySelectorAll(".my-element .tab-pane");
+
+    tabTitles.forEach((tab, index) => {
+        tab.addEventListener("click", function () {
+            // Update local storage with the clicked tab index
+            localStorage.setItem("my-tab", index);
+
+            // Reset all tabs and panes first
+            tabTitles.forEach((t) => {
+                t.classList.remove("brx-open");
+                t.setAttribute("aria-pressed", "false");
+            });
+            tabPanes.forEach((pane) => {
+                pane.classList.remove("brx-open");
+            });
+
+            // Activate the clicked tab and corresponding pane
+            tab.classList.add("brx-open");
+            tab.setAttribute("aria-pressed", "true");
+            const activePane = tabPanes[index];
+            if (activePane) {
+                activePane.classList.add("brx-open");
+            }
+        });
+    });
+}
+
+// Initialize both functions
+document.addEventListener("DOMContentLoaded", function () {
+    setActiveTabOnPageLoad(); // Set the correct tab and pane on page load
+    addClickHandlersToTabs(); // Set up click events to handle tab and pane changes
+});
+```
