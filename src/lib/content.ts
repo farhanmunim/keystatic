@@ -1,9 +1,9 @@
 import { getCollection, getEntry, type CollectionEntry } from 'astro:content';
 
-/** Site Settings singleton (src/content/settings/site.yml). */
+/** Site Settings singleton (src/content/settings/site.yaml). */
 export async function getSettings() {
   const entry = await getEntry('settings', 'site');
-  if (!entry) throw new Error('Missing src/content/settings/site.yml (Site Settings).');
+  if (!entry) throw new Error('Missing src/content/settings/site.yaml (Site Settings).');
   return entry.data;
 }
 
