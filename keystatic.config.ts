@@ -69,7 +69,7 @@ export default config({
     : { kind: 'local' },
 
   ui: {
-    brand: { name: 'Site CMS' },
+    brand: { name: 'farhan.app › CMS' },
     navigation: {
       Content: ['pages', 'posts', 'projects', 'services', 'resources'],
       Organisation: ['categories', 'tags'],
