@@ -19,7 +19,7 @@ This time around, I tried to do things properly and use a plugin to export posts
 The posts imported fine.  
 The media didn’t.
 
-![WordPress import screen showing multiple media files failing to import during site migration.](/uploads/export-import-media-fail.png)
+![WordPress import screen showing multiple media files failing to import during site migration.](/uploads/posts/how-i-successfully-export-media-with-selected-post-content/export-import-media-fail.png)
 
 If you’ve run into the same issue – especially when Cloudflare is involved – this is what actually fixed it for me.
 
@@ -54,7 +54,7 @@ To answer that, I built a small [test media URL plugin](https://github.com/farha
 
 The result was consistent: **403 Forbidden**.
 
-![Custom WordPress tool testing media URL access, returning a 403 Forbidden response.](/uploads/export-import-media-url-fail.png)
+![Custom WordPress tool testing media URL access, returning a 403 Forbidden response.](/uploads/posts/how-i-successfully-export-media-with-selected-post-content/export-import-media-url-fail.png)
 
 That ruled out WordPress entirely. The request wasn’t even getting through.
 
@@ -71,7 +71,7 @@ Neither helped.
 
 What *did* work was **whitelisting the destination server’s IP address in Cloudflare** on the old site.
 
-![Cloudflare Web Application Firewall dashboard showing IP access rules and security settings.](/uploads/export-import-media-cloudflare-whitelist.png)
+![Cloudflare Web Application Firewall dashboard showing IP access rules and security settings.](/uploads/posts/how-i-successfully-export-media-with-selected-post-content/export-import-media-cloudflare-whitelist.png)
 
 As soon as I did that:
 
@@ -79,7 +79,7 @@ As soon as I did that:
 - Media files downloaded successfully
 - The import completed as expected
 
-![Media URL test tool showing a successful 200 OK response after Cloudflare configuration changes.](/uploads/export-import-media-url-success.png)
+![Media URL test tool showing a successful 200 OK response after Cloudflare configuration changes.](/uploads/posts/how-i-successfully-export-media-with-selected-post-content/export-import-media-url-success.png)
 
 ## Why this happens
 
@@ -95,7 +95,7 @@ So the requests get blocked…quietly.
 
 Once the server IP is trusted, the imports work normally.
 
-![WordPress import completion screen confirming posts and media were imported successfully.](/uploads/export-import-media-success.png)
+![WordPress import completion screen confirming posts and media were imported successfully.](/uploads/posts/how-i-successfully-export-media-with-selected-post-content/export-import-media-success.png)
 
 ## What to check if your media imports keep failing
 

@@ -14,7 +14,7 @@ Keystatic (/keystatic) ──commits──▶ GitHub repo ──build──▶ C
 | Path | What it is |
 | --- | --- |
 | `keystatic.config.ts` | The CMS configuration: collections, fields, sidebar groups, storage |
-| `public/uploads/` | The shared upload folder (images, PDFs, attachments), served at `/uploads/...` |
+| `public/uploads/` | Uploads, one folder per entry (`<collection>/<entry-slug>/file`), served at `/uploads/...`; listed at `/media` |
 | `src/content.config.ts` | Astro content collections and schemas (mirror of the CMS collections) |
 | `src/content/pages/` | Pages (`*.mdoc`) → served at `/<slug>` |
 | `src/content/posts/` | Posts (`*.mdoc`) → `/blog/<slug>` |
@@ -95,8 +95,9 @@ See `keystatic.config.ts` for the full field list. Highlights:
 * **Slugs** – generated from the title/name (lowercase, hyphenated) and editable in the entry.
 * **Relations** – posts link to categories and tags; projects/services/resources link to tags;
   every content type links to an author; categories link to a parent category.
-* **Media** – uploads go to `public/uploads`, originals untouched. Keystatic has no browsable
-  media library, so each image/file field uploads its own file. Alt text is entered per usage
+* **Media** – uploads go to `public/uploads/<collection>/<entry-slug>/`, the layout Keystatic
+  needs to preview images in the editor. Originals are untouched. Keystatic has no browsable
+  media library, so the site's `/media` page lists every file. Alt text is entered per usage
   (the *Cover image alt text* field).
 * **Settings** – the Site Settings singleton holds site name, tagline, meta description, logo,
   favicon, share image, footer text, social links, analytics dashboard link and raw HTML

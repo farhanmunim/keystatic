@@ -79,7 +79,7 @@ Cloudflare Worker "keystatic"  ◀── visitors (custom domain)
         <tr><td><code>astro.config.mjs</code></td><td>Astro setup: integrations, Cloudflare adapter, site URL, <code>/admin</code> redirect</td></tr>
         <tr><td><code>src/content.config.ts</code></td><td>Astro content schemas (mirror the CMS)</td></tr>
         <tr><td><code>src/content/</code></td><td>All content, one folder per collection</td></tr>
-        <tr><td><code>public/uploads/</code></td><td>The shared media folder, served at <code>/uploads/…</code></td></tr>
+        <tr><td><code>public/uploads/</code></td><td>All uploads, one folder per entry (<code>&lt;collection&gt;/&lt;entry&gt;/file</code>), served at <code>/uploads/…</code>. Listed at <a href="/media"><code>/media</code></a></td></tr>
         <tr><td><code>src/pages/</code>, <code>src/layouts/</code>, <code>src/components/</code></td><td>Routes and templates for the public site</td></tr>
         <tr><td><code>scripts/import-wordpress.py</code></td><td>The one-off WordPress importer</td></tr>
         <tr><td><code>ARCHITECTURE.md</code>, <code>README.md</code></td><td>The same information as this page, in the repository</td></tr>
@@ -160,7 +160,7 @@ Cloudflare Worker "keystatic"  ◀── visitors (custom domain)
         <tr><td>Site Settings</td><td>n/a</td><td>Name, images, social links, scripts, search-engine switch</td></tr>
       </tbody>
     </table>
-    <p>Items link to each other by slug: an author, tags and categories are the file names of those entries. All uploads share one folder, <code>public/uploads</code>.</p>
+    <p>Items link to each other by slug: an author, tags and categories are the file names of those entries. Uploads are stored per entry under <code>public/uploads/&lt;collection&gt;/&lt;entry-slug&gt;/</code>, which is the layout Keystatic uses so it can preview them in the editor. The <a href="/media"><code>/media</code></a> page lists every file.</p>
 
     <h2 id="seo">Search engines and analytics</h2>
     <ul>
@@ -180,7 +180,7 @@ Cloudflare Worker "keystatic"  ◀── visitors (custom domain)
     <ul>
       <li>No separate user accounts, roles or password resets: access is GitHub write access.</li>
       <li>Drafts are branches and pull requests, not a draft switch.</li>
-      <li>No shared media library to browse: each image or file field uploads its own file. Alt text is a separate field.</li>
+      <li>No media library inside the CMS: each image or file field uploads its own file into that entry's folder. The read-only <a href="/media"><code>/media</code></a> page lists everything; deleting or moving a file is done on GitHub. Alt text is a separate field.</li>
       <li>The post publish date defaults to the time the post is created, not first published.</li>
       <li>URL prefixes (such as <code>/blog</code>) are fixed in the code, not editable in the CMS.</li>
       <li>No deploy-hook setting: a commit to <code>main</code> triggers the build.</li>
@@ -216,7 +216,7 @@ Cloudflare Worker "keystatic"  ◀── visitors (custom domain)
     <p>The slug (the last part of the URL) is generated from the title: lowercase, hyphenated, no accents. You can edit it in the entry sidebar before or after saving.</p>
 
     <h2>Images and files</h2>
-    <p>Upload images and files through any image or file field. Everything goes into one shared folder, <code>public/uploads</code>, and originals are stored untouched. Always fill in the alt text field next to a cover image.</p>
+    <p>Upload images through the cover-image field or the image button in the editor toolbar, and files through an attachment field. Each entry gets its own folder under <code>public/uploads</code>, originals are stored untouched, and <a href="/media">/media</a> shows everything that has been uploaded. Always fill in the alt text field next to a cover image.</p>
 
     <h2>Deploys</h2>
     <p>Saving on <code>main</code>, or merging a pull request into it, commits to that branch. Cloudflare then rebuilds and redeploys the site, usually within a couple of minutes. Work on other branches does not rebuild the live site.</p>

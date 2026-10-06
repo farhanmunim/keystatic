@@ -1,0 +1,224 @@
+---
+title: "How to deploy a vibe-coded web app for free (GitHub + Cloudflare, no experience needed)"
+author: "farhan-munim"
+cover: ""
+cover_alt: ""
+excerpt: "Built an app with AI but not sure how to put it online? Here’s the simple, free setup I use: GitHub to store the code, Cloudflare to host it, and a free database and automations when you need them. No servers, no bills, no tech degree."
+date: 2026-10-05T21:32
+featured: false
+categories:
+  - "technical"
+tags:
+  - "ai"
+  - "deployment"
+---
+
+So you’ve used AI to build a web app. Maybe it’s a calculator, a dashboard, a little tool for work, or a side project idea. It works on your computer. Now what?
+
+This is where a lot of people with “vibe coding” projects get stuck. Building the app felt easy. Getting it **online** feels like a different world full of servers, hosting plans and scary words.
+
+Good news: it doesn’t have to be. I deploy my apps for **free**, and the whole setup takes minutes once you’ve done it once. In this post I’ll explain exactly how, in plain English.
+
+## The big picture
+
+Here’s the whole idea in one picture:
+
+```
+ ┌──────────────┐      ┌──────────────┐      ┌──────────────────┐      ┌──────────────┐
+  │  You + AI    │ ───► │   GitHub     │ ───► │  Cloudflare      │ ───► │  Live website │
+  │ (write code) │      │ (stores code)│      │  (hosts + deploys)│      │ for everyone  │
+  └──────────────┘      └──────────────┘      └──────────────────┘      └──────────────┘
+```
+
+That’s it. You write code (with AI’s help), save it to GitHub, and Cloudflare automatically puts it on the internet. Every time you update the code, the website updates too. No manual uploading.
+
+Let’s go through each piece.
+
+## Step 1: Store your code on GitHub
+
+**GitHub** is a website where you keep your code. Think of it like Google Drive, but built for code, and it remembers every change you’ve ever made.
+
+Why do you need it?
+
+- **It’s your backup.** If your laptop dies, your app is safe.
+- **It keeps a history.** Broke something? You can go back to an older version.
+- **It connects to hosting.** This is the important one. Cloudflare can watch your GitHub and deploy automatically.
+
+**How to do it:**
+
+1. Create a free account at github.com.
+2. Create a new “repository” (that’s just a fancy word for a project folder).
+3. Upload your code. If you’re using an AI coding tool, it can usually do this for you. You can also just ask your AI: *“Help me put this project on GitHub.”*
+
+**Public or private?** You’ll be asked this when you create the repository.
+
+- **Public** means anyone can see your code. It’s totally free with no catches.
+- **Private** means only you can see it. This is also free, but some extras (like automation minutes, which I’ll cover below) are more limited.
+
+If your app has nothing secret in it, public is the simplest option. If it’s a work tool or something you’d rather keep to yourself, go private.
+
+> **Important:** Never put passwords or secret keys inside your code on GitHub, especially on a public repository. Ask your AI to help you keep them out of the code.
+
+## Step 2: Connect Cloudflare to deploy it automatically
+
+**Cloudflare** is a big internet company, and it has a generous free plan for hosting websites. Their hosting for this lives in the **Workers & Pages** section of the Cloudflare dashboard.
+
+> **Quick note on names:** Cloudflare has two ways to host a site: **Pages** (the original, very beginner-friendly option) and **Workers with static assets** (the newer one that Cloudflare now points new projects towards). Both connect to GitHub, both deploy automatically, and both serve static files for free. If you see both options, don’t panic. Either one works for the apps in this post. If you’re unsure, ask your AI which one fits your project.
+
+Here’s what happens when you connect it to GitHub:
+
+```
+  You change your code
+          │
+          ▼
+   Save it to GitHub
+          │
+          ▼
+   Cloudflare notices the change
+          │
+          ▼
+   Cloudflare builds and publishes your site
+          │
+          ▼
+   Your live website is updated (usually within a minute or two)
+```
+
+You never have to “upload” anything again. Save to GitHub and the site updates itself. This is called **automatic deployment**, and it’s the best part of the whole setup.
+
+**How to do it:**
+
+1. Create a free account at cloudflare.com.
+2. In the dashboard, go to **Workers & Pages** and choose to create a new application.
+3. Choose to connect to Git (on the Pages route that’s **Create application → Pages → Connect to Git**; on the Workers route it’s **Import a repository**). Sign in with GitHub and pick your repository. Both public and private repositories work.
+4. Fill in the build settings. If your app is plain HTML, CSS and JavaScript with nothing to build, leave the **build command** empty. If it uses a tool like Vite or React, your AI can tell you the exact build command and output folder. Just ask: *“What build command and output directory should I use on Cloudflare?”*
+5. Click **Save and Deploy**.
+
+A minute later, you’ll get a free web address that looks something like `your-project.pages.dev` (or `your-project.your-name.workers.dev` if you used the Workers route). Open it, and your app is live on the internet. 🎉
+
+**What does free get you?** On the free plan, serving static files (your web pages, scripts and images) is unlimited, with no bandwidth charges however many people visit. You also get unlimited sites and no credit card is needed. The main limit to know about is **500 builds per month** on Pages (a “build” happens each time you push a change and Cloudflare publishes it). That’s about 16 updates a day, so most people never come close.
+
+One thing to watch: the free plan builds one site at a time, so if you push lots of changes quickly, they queue up. Not a problem, just a short wait.
+
+## Step 3 (Optional): Use your own domain name
+
+That `.pages.dev` address works perfectly well, and you can stop here. Lots of my projects never get anything else.
+
+But if you want something nicer, like `mycoolapp.com` or `tool.mywebsite.com`, you can point your own domain at your project:
+
+1. Buy a domain from any domain seller (this is the one part that usually costs money, often around £10 a year). You can also use a domain you already own.
+2. In your Cloudflare project, find the **Custom domains** option and add your domain.
+3. Follow the steps shown on screen. If your domain is managed by Cloudflare, it’s mostly automatic.
+
+**Tip:** If you already own a domain, you can create free *subdomains* (like `app.yourdomain.com`) for each new project without buying anything extra.
+
+## What if my app needs a database?
+
+Many simple apps don’t need a database at all. A calculator, a landing page or a tool that works entirely in the browser can run without one.
+
+But if your app needs to **remember things** (user notes, saved settings, a list of items, form submissions), you need somewhere to store that data.
+
+Cloudflare has a free database called **D1**. It’s the same kind of database used all over the web, but you don’t have to set up or manage any servers.
+
+```
+ ┌──────────────┐        ┌────────────────────┐        ┌──────────────┐
+  │  Your app    │ ◄────► │  Small backend     │ ◄────► │ Cloudflare D1 │
+  │ (the website)│        │ (Cloudflare Worker)│        │  (database)   │
+  └──────────────┘        └────────────────────┘        └──────────────┘
+```
+
+Your website talks to a small piece of code (called a **Worker**) that runs on Cloudflare. That code reads from and writes to the database. All of it sits in the same Cloudflare account and the same free plan.
+
+**How to do it:** The easiest way is to ask your AI. Try something like:
+
+> *“I’m deploying on Cloudflare Pages. My app needs to save \[whatever you need\]. Please set it up using a Cloudflare D1 database and tell me the exact steps to create and connect it.”*
+
+A good AI coding assistant will write the code and walk you through creating the database in your Cloudflare dashboard. You’ll usually click a few buttons to create the database and link it to your project.
+
+**Free limits:** D1’s free plan gives you **5 GB of storage**, **5 million rows read per day** and **100,000 rows written per day**. Those daily limits reset at midnight UTC. For hobby projects, internal tools and small apps, that’s plenty. If your app goes over the daily limit, database requests simply fail until the limit resets (nobody gets billed by surprise on the free plan). If you ever outgrow it, Cloudflare’s paid Workers plan is $5 a month and raises the limits a lot.
+
+## What if I want things to happen automatically?
+
+Sometimes you want your app to do something on a schedule or in the background. For example:
+
+- Refresh some data every morning
+- Send a summary every week
+- Clean up old records
+- Check a website and save the result
+
+You have two free options.
+
+### Option 1: GitHub Actions
+
+**GitHub Actions** lets GitHub run little tasks for you, either on a schedule (“every day at 7am”) or when something happens (“when I save new code”).
+
+- Great for: scheduled jobs, running checks, updating data files, and building things.
+- **Public repositories:** free, with no minute limit on the standard runners.
+- **Private repositories:** the free GitHub plan includes **2,000 minutes per month**. A small daily job that takes a minute or two will barely dent that, but heavy automation can use it up. (Tip: stick to the standard Linux runners. Windows and Mac runners use up your minutes faster.)
+
+### Option 2: Cloudflare Workers
+
+A **Cloudflare Worker** is a small program that runs on Cloudflare. It can respond to requests or run on a timer (Cloudflare calls these *cron triggers*).
+
+- Great for: tiny backends, talking to your database, and scheduled tasks that live next to your app.
+- The free plan allows **100,000 requests per day**, and up to **5 scheduled tasks (cron triggers)** on your account. That’s plenty for small projects.
+- Each request gets a very small slice of computing time on the free plan (10 milliseconds), so it’s best for quick jobs, not heavy number-crunching.
+
+**Which should you pick?** Here’s a simple rule of thumb:
+
+```
+ Is the task about your code or repo (building, checking, updating files)?
+          └──► Use GitHub Actions
+
+  Is the task about your live app (talking to the database, handling requests)?
+          └──► Use a Cloudflare Worker
+```
+
+Honestly, if you’re not sure, describe what you want to your AI and ask which one fits. Either works for most beginner projects.
+
+## The free limits (be aware, don’t be scared)
+
+“Free” always has limits, and it’s good to know them up front. These are the numbers as of **October 2026**, but companies change them from time to time, so check the official pricing pages if you’re planning something big.
+
+| Part | What’s free | What to watch |
+| --- | --- | --- |
+| **GitHub** | Unlimited public and private repositories | Private repos get 2,000 free automation minutes a month; public repos are unlimited |
+| **Cloudflare Pages / static hosting** | Unlimited sites, unlimited bandwidth for static files, automatic deploys | 500 builds per month on Pages |
+| **Cloudflare Workers** (backends and scheduled tasks) | 100,000 requests per day, 5 cron triggers | Daily request cap and a small CPU time per request |
+| **Cloudflare D1** (database) | 5 GB storage, 5 million rows read and 100,000 rows written per day | Daily read/write caps (reset at midnight UTC) |
+| **Custom domain** | Connecting one to Cloudflare is free | Buying the domain name costs money |
+
+One more thing: if your app uses Pages Functions (backend code that lives next to your site), those requests count towards the same 100,000 per day Workers allowance. Plain static files don’t count.
+
+For personal projects, side projects and internal tools, you’ll most likely stay well inside the free limits. If you ever grow past them, paid plans are available (Cloudflare’s Workers plan starts at $5 a month), but you don’t need to think about that today.
+
+## My simple checklist
+
+Here’s the whole process as a quick checklist you can follow every time:
+
+1. ✅ Build your app with AI.
+2. ✅ Put the code in a GitHub repository.
+3. ✅ Connect that repository to Cloudflare Pages.
+4. ✅ Open your free `.pages.dev` link and check it works.
+5. ➕ *(Optional)* Add a custom domain.
+6. ➕ *(Optional)* Add a D1 database if your app needs to save data.
+7. ➕ *(Optional)* Add a GitHub Action or Worker for automations.
+
+After that, whenever you want to change something, just update your code on GitHub. The website updates itself.
+
+## Tips for beginners
+
+- **Start small.** Deploy a simple page first, just to see the process work. Then build up.
+- **Ask your AI for help at every step.** Paste in any error message you see and ask what it means. It’s very good at this.
+- **Keep secrets secret.** Passwords and API keys should never go directly into your code. Use the settings area in Cloudflare or GitHub instead.
+- **Don’t worry about breaking things.** GitHub keeps your history, so you can always go back.
+- **Check the free limits now and then.** Especially if your app gets popular.
+
+## Final thoughts
+
+Ten years ago, putting a website online meant renting servers, setting up software and paying monthly fees. Today, you can go from an AI-generated idea to a live website in about the time it takes to make a cup of tea, and pay nothing.
+
+If you’ve been building things with AI and keeping them on your computer, I hope this shows how little stands between you and sharing them with the world.
+
+Got questions or stuck on a step? Leave a comment below and I’ll do my best to help.
+
+Happy building! 🚀

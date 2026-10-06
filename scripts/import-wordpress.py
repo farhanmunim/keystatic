@@ -8,7 +8,10 @@ Mapping (WordPress -> Keystatic):
   posts -> posts, categories -> categories, tags -> tags, users -> authors,
   solutions -> services, projects -> projects, resources -> resources,
   socials -> Site Settings social links, media -> public/uploads.
-Re-running overwrites the files it generates. Demo content is removed first.
+Uploads follow Keystatic's layout, public/uploads/<collection>/<entry-slug>/<file>, so the
+editor can preview them. Media nothing references goes to public/uploads/library/.
+Re-running overwrites the imported collections. Pages and Site Settings are left alone
+(Site Settings is only created if missing).
 """
 import html
 import json
@@ -88,8 +91,23 @@ def iso(date_gmt: str) -> str:
 
 
 # ------------------------------------------------------------ media / links
-media_by_url: dict[str, str] = {}   # source url -> '/uploads/name'
+media_by_url: dict[str, str] = {}   # source url -> local public path
 media_by_id: dict[int, dict] = {}
+media_bytes: dict[str, bytes] = {}  # source url (original size) -> file contents
+target: list[str] = ['library']     # current upload folder, e.g. ['posts', '<slug>']
+used_sources: set[str] = set()
+
+
+def place(name: str, data: bytes) -> str:
+    """Write a file into the current target folder and return its public path."""
+    folder = UPLOADS.joinpath(*target)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / name).write_bytes(data)
+    return '/uploads/' + '/'.join(target) + '/' + name
+
+
+def original(url: str) -> str:
+    return re.sub(r'-\d+x\d+(\.[a-z]+)$', r'\1', url)  # resized variant -> original
 
 
 def upload_name(url: str) -> str:
@@ -97,23 +115,18 @@ def upload_name(url: str) -> str:
 
 
 def local_image(url: str) -> str:
-    """Map a WordPress upload URL to /uploads/<file>, downloading it if needed."""
+    """Copy a WordPress upload into the current entry's folder and return its public path."""
     if not url.startswith(WP + '/wp-content/uploads/'):
         return url
-    if url in media_by_url:
-        return media_by_url[url]
-    base = re.sub(r'-\d+x\d+(\.[a-z]+)$', r'\1', url)  # resized variant -> original
-    if base in media_by_url:
-        return media_by_url[base]
-    UPLOADS.mkdir(parents=True, exist_ok=True)
-    name = upload_name(base)
-    try:
-        (UPLOADS / name).write_bytes(fetch(base, binary=True))
-    except subprocess.CalledProcessError:
-        name = upload_name(url)
-        (UPLOADS / name).write_bytes(fetch(url, binary=True))
-    media_by_url[url] = media_by_url[base] = f'/uploads/{name}'
-    return media_by_url[url]
+    base = original(url)
+    if base not in media_bytes:
+        try:
+            media_bytes[base] = fetch(base, binary=True)
+        except subprocess.CalledProcessError:
+            base = url
+            media_bytes[base] = fetch(url, binary=True)
+    used_sources.add(base)
+    return place(upload_name(base), media_bytes[base])
 
 
 post_paths: dict[str, str] = {}
@@ -314,10 +327,8 @@ def extract_svgs(raw: str, slug: str) -> str:
         if 'xmlns=' not in svg[:200]:
             svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg" font-family="system-ui, sans-serif"', 1)
         svg = svg.replace('currentColor', '#475569')
-        UPLOADS.mkdir(parents=True, exist_ok=True)
-        (UPLOADS / name).write_text(svg, encoding='utf-8')
         key = f'svg-placeholder:{name}'
-        svg_files[key] = f'/uploads/{name}'
+        svg_files[key] = place(name, svg.encode('utf-8'))
         label = (re.search(r'aria-label="([^"]*)"', svg) or [None, 'Diagram'])[1]
         return f'<img src="{key}" alt="{html.escape(label)}">'
 
@@ -352,19 +363,22 @@ def main():
     print(f'posts={len(posts)} cats={len(cats)} tags={len(tags)} media={len(media)} '
           f'solutions={len(solutions)} projects={len(projects)} resources={len(resources)} socials={len(socials)}')
 
-    # Remove demo content and uploads (kept in git history).
-    for d in ('pages', 'posts', 'projects', 'services', 'resources', 'categories', 'tags', 'authors', 'settings'):
+    # Replace the imported collections and their uploads (history stays in git).
+    for d in ('posts', 'projects', 'services', 'resources', 'categories', 'tags', 'authors'):
         shutil.rmtree(CONTENT / d, ignore_errors=True)
-    shutil.rmtree(UPLOADS, ignore_errors=True)
-    UPLOADS.mkdir(parents=True)
+    for d in ('posts', 'projects', 'services', 'resources', 'authors', 'site', 'library'):
+        shutil.rmtree(UPLOADS / d, ignore_errors=True)
+    UPLOADS.mkdir(parents=True, exist_ok=True)
 
-    # Media library.
+    # Media library: fetch everything once; files are placed next to the entries that use them.
     for m in media:
-        name = upload_name(m['source_url'])
-        (UPLOADS / name).write_bytes(fetch(m['source_url'], binary=True))
-        media_by_url[m['source_url']] = f'/uploads/{name}'
+        media_bytes[m['source_url']] = fetch(m['source_url'], binary=True)
         media_by_id[m['id']] = m
     print('downloaded', len(media), 'media files')
+
+    def use(source_url: str) -> str:
+        used_sources.add(source_url)
+        return place(upload_name(source_url), media_bytes[source_url])
 
     cat_slug = {c['id']: c['slug'] for c in cats}
     tag_slug = {t['id']: t['slug'] for t in tags}
@@ -388,7 +402,9 @@ def main():
     # Author.
     u = users[0]
     first, _, last = html.unescape(u['name']).partition(' ')
-    avatar = media_by_url.get(next((m['source_url'] for m in media if m['slug'] == 'headshot'), ''), '')
+    target[:] = ['authors', AUTHOR]
+    headshot = next((m['source_url'] for m in media if m['slug'] == 'headshot'), '')
+    avatar = use(headshot) if headshot else ''
     write_entry('authors', AUTHOR, {'first_name': first, 'last_name': last, 'avatar': avatar, 'social': []},
                 paragraphs(u.get('description', '')))
 
@@ -396,13 +412,14 @@ def main():
         m = media_by_id.get(p.get('featured_media') or 0)
         if not m:
             return '', ''
-        return media_by_url[m['source_url']], m.get('alt_text') or plain(m['title']['rendered'])
+        return use(m['source_url']), m.get('alt_text') or plain(m['title']['rendered'])
 
     def tag_list(p):
         return [tag_slug[i] for i in p.get('tags', []) if i in tag_slug]
 
     # Posts.
     for p in posts:
+        target[:] = ['posts', p['slug']]
         img, alt = cover(p)
         cats_ = [cat_slug[i] for i in p['categories'] if i in cat_slug and cat_slug[i] != 'uncategorised']
         write_entry('posts', p['slug'], {
@@ -413,6 +430,7 @@ def main():
 
     # Solutions -> services.
     for s in solutions:
+        target[:] = ['services', s['slug']]
         write_entry('services', s['slug'], {
             'title': html.unescape(s['title']['rendered']), 'author': AUTHOR, 'featured': False, 'tags': tag_list(s),
             'cover': '', 'cover_alt': '', 'summary': '',
@@ -453,15 +471,28 @@ def main():
                  'x': 'X', 'twitter': 'X', 'instagram': 'Instagram', 'bluesky': 'Bluesky', 'mastodon': 'Mastodon'}
     social = [{'platform': platforms.get(s['slug'], 'Other'), 'url': (s['meta_box'] or {}).get('social_link', ''), 'handle': ''}
               for s in socials]
-    mid = lambda slug: media_by_url.get(next((m['source_url'] for m in media if m['slug'] == slug), ''), '')
+    target[:] = ['site']
+    mid = lambda slug: next((use(m['source_url']) for m in media if m['slug'] == slug), '')
+    site_file = CONTENT / 'settings' / 'site.yaml'
+    if site_file.exists():
+        print('Site Settings exists; leaving it alone (images placed in public/uploads/site/)')
+        mid('favicon-2'), mid('banner')
     site = {
         'name': html.unescape(fetch(f'{WP}/wp-json/')['name']), 'tagline': '',
         'description': u.get('description', ''), 'logo': '', 'favicon': mid('favicon-2'), 'share_image': mid('banner'),
         'footer_text': f'© 2026 {html.unescape(u["name"])}', 'social': social, 'analytics_url': '',
         'noindex': True, 'head_html': UMAMI, 'footer_html': '',
     }
-    (CONTENT / 'settings').mkdir(parents=True, exist_ok=True)
-    (CONTENT / 'settings' / 'site.yaml').write_text(frontmatter(site) + '\n', encoding='utf-8')
+    if not site_file.exists():
+        site_file.parent.mkdir(parents=True, exist_ok=True)
+        site_file.write_text(frontmatter(site) + '\n', encoding='utf-8')
+
+    # Anything in the WordPress media library that no entry uses.
+    target[:] = ['library']
+    unused = [m for m in media if m['source_url'] not in used_sources]
+    for m in unused:
+        use(m['source_url'])
+    print(f'{len(unused)} unreferenced media files kept in public/uploads/library/')
 
     print('done;', len(set(warnings)), 'warning kinds')
     for w in sorted(set(warnings)):

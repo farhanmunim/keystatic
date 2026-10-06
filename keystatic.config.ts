@@ -6,8 +6,11 @@ import { collection, config, fields, singleton } from '@keystatic/core';
 
 const REPO = 'farhanmunim/keystatic';
 
-// One shared uploads folder for all images and files. Originals are stored untouched.
-const UPLOADS = { directory: 'public/uploads', publicPath: '/uploads/' } as const;
+// Uploads live under public/uploads/<collection>/<entry-slug>/<file> (Keystatic adds the entry
+// slug itself) and are served at /uploads/<collection>/<entry-slug>/<file>. Originals are stored
+// untouched. /media lists everything.
+const uploads = (collection: string) =>
+  ({ directory: `public/uploads/${collection}`, publicPath: `/uploads/${collection}/` }) as const;
 
 const platforms = ['Website', 'GitHub', 'LinkedIn', 'X', 'Bluesky', 'Mastodon', 'Instagram', 'YouTube', 'Buy Me a Coffee', 'Other'];
 
@@ -42,18 +45,18 @@ const tags = () =>
     collection: 'tags',
   });
 
-const cover = () => ({
-  cover: fields.image({ label: 'Cover image', ...UPLOADS }),
+const cover = (collection: string) => ({
+  cover: fields.image({ label: 'Cover image', ...uploads(collection) }),
   cover_alt: fields.text({
     label: 'Cover image alt text',
     description: 'Describe the cover image for screen readers.',
   }),
 });
 
-const content = () =>
+const content = (collection: string) =>
   fields.markdoc({
     label: 'Content',
-    options: { image: { ...UPLOADS }, table: true },
+    options: { image: { ...uploads(collection) }, table: true },
   });
 
 const title = () => fields.slug({ name: { label: 'Title', validation: { isRequired: true } } });
@@ -61,7 +64,8 @@ const title = () => fields.slug({ name: { label: 'Title', validation: { isRequir
 const featured = (description: string) =>
   fields.checkbox({ label: 'Featured', description, defaultValue: false });
 
-const attachment = (description: string) => fields.file({ label: 'Attachment', description, ...UPLOADS });
+const attachment = (collection: string, description: string) =>
+  fields.file({ label: 'Attachment', description, ...uploads(collection) });
 
 export default config({
   storage: import.meta.env.PROD
@@ -89,13 +93,13 @@ export default config({
       schema: {
         title: title(),
         author: author(),
-        ...cover(),
+        ...cover('pages'),
         description: fields.text({
           label: 'Description',
           description: "Used as the page's meta description.",
           multiline: true,
         }),
-        content: content(),
+        content: content('pages'),
       },
     }),
 
@@ -109,7 +113,7 @@ export default config({
       schema: {
         title: title(),
         author: author(),
-        ...cover(),
+        ...cover('posts'),
         excerpt: fields.text({
           label: 'Excerpt',
           description: 'Short summary shown in listings.',
@@ -126,7 +130,7 @@ export default config({
           collection: 'categories',
         }),
         tags: tags(),
-        content: content(),
+        content: content('posts'),
       },
     }),
 
@@ -142,11 +146,11 @@ export default config({
         author: author(),
         featured: featured('Show first in listings.'),
         tags: tags(),
-        ...cover(),
+        ...cover('projects'),
         summary: fields.text({ label: 'Summary', multiline: true }),
         url: fields.url({ label: 'URL', description: 'Link to the live project.' }),
-        attachment: attachment('Optional downloadable file, e.g. a case study PDF.'),
-        content: content(),
+        attachment: attachment('projects', 'Optional downloadable file, e.g. a case study PDF.'),
+        content: content('projects'),
       },
     }),
 
@@ -162,9 +166,9 @@ export default config({
         author: author(),
         featured: featured('Show first in listings.'),
         tags: tags(),
-        ...cover(),
+        ...cover('services'),
         summary: fields.text({ label: 'Summary', multiline: true }),
-        content: content(),
+        content: content('services'),
       },
     }),
 
@@ -180,11 +184,11 @@ export default config({
         author: author(),
         featured: featured('Show first in listings.'),
         tags: tags(),
-        ...cover(),
+        ...cover('resources'),
         description: fields.text({ label: 'Description', multiline: true }),
         url: fields.url({ label: 'External URL' }),
-        attachment: attachment('Optional downloadable file.'),
-        content: content(),
+        attachment: attachment('resources', 'Optional downloadable file.'),
+        content: content('resources'),
       },
     }),
 
@@ -232,9 +236,9 @@ export default config({
           },
         }),
         last_name: fields.text({ label: 'Last name', validation: { isRequired: true } }),
-        avatar: fields.image({ label: 'Avatar', ...UPLOADS }),
+        avatar: fields.image({ label: 'Avatar', ...uploads('authors') }),
         social: socialLinks(),
-        about: fields.markdoc({ label: 'About the author', options: { image: { ...UPLOADS }, table: true } }),
+        about: fields.markdoc({ label: 'About the author', options: { image: { ...uploads('authors') }, table: true } }),
       },
     }),
   },
@@ -248,16 +252,16 @@ export default config({
         name: fields.text({ label: 'Site name', validation: { isRequired: true } }),
         tagline: fields.text({ label: 'Tagline' }),
         description: fields.text({ label: 'Default meta description', multiline: true }),
-        logo: fields.image({ label: 'Logo', ...UPLOADS }),
+        logo: fields.image({ label: 'Logo', ...uploads('site') }),
         favicon: fields.image({
           label: 'Favicon',
           description: 'A square SVG, PNG or ICO file.',
-          ...UPLOADS,
+          ...uploads('site'),
         }),
         share_image: fields.image({
           label: 'Default social-share image',
           description: 'Used for Open Graph / Twitter cards when a page has no cover image.',
-          ...UPLOADS,
+          ...uploads('site'),
         }),
         footer_text: fields.text({ label: 'Footer copyright text' }),
         social: socialLinks(),

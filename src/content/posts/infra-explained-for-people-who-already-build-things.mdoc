@@ -37,7 +37,7 @@ Because it has no screen, you control it with text. The **terminal** (also calle
 
 *Diagram 1: Your laptop connects to a server in a data centre over SSH, encrypted, on port 22. SSH gives you a terminal on a computer that isn’t in front of you.*
 
-![Diagram: your laptop connects to a server in a data centre over SSH, encrypted, on port 22](/uploads/infra-explained-for-people-who-already-b-diagram-1.svg)
+![Diagram: your laptop connects to a server in a data centre over SSH, encrypted, on port 22](/uploads/posts/infra-explained-for-people-who-already-build-things/infra-explained-for-people-who-already-b-diagram-1.svg)
 
 *SSH gives you a terminal on a computer that isn’t in front of you.*
 
@@ -231,7 +231,7 @@ Common reverse proxies: Nginx, Traefik, Caddy, HAProxy, Envoy. In Kubernetes (th
 
 *Diagram 2: Visitors reach a reverse proxy, which reads the hostname and forwards each request to the matching app. One public IP, many apps: the proxy routes by hostname (host-based routing).*
 
-![Diagram: visitors reach a reverse proxy, which reads the hostname and forwards each request to the matching app](/uploads/infra-explained-for-people-who-already-b-diagram-2.svg)
+![Diagram: visitors reach a reverse proxy, which reads the hostname and forwards each request to the matching app](/uploads/posts/infra-explained-for-people-who-already-build-things/infra-explained-for-people-who-already-b-diagram-2.svg)
 
 *One public IP, many apps: the proxy routes by hostname (host-based routing).*
 
@@ -508,7 +508,7 @@ In practice they stack: containers run *inside* VMs. Your VPS is a VM; Docker ru
 
 *Diagram 3: Layer diagram: each virtual machine carries its own guest operating system on top of a hypervisor, while containers share the host operating system’s kernel through a container runtime. Each VM carries a whole operating system of its own; containers share the host’s, which is why they’re small and start fast.*
 
-![Layer diagram: each virtual machine carries its own guest operating system on top of a hypervisor, while containers share the host operating system's kernel through a container runtime](/uploads/infra-explained-for-people-who-already-b-diagram-3.svg)
+![Layer diagram: each virtual machine carries its own guest operating system on top of a hypervisor, while containers share the host operating system's kernel through a container runtime](/uploads/posts/infra-explained-for-people-who-already-build-things/infra-explained-for-people-who-already-b-diagram-3.svg)
 
 *Each VM carries a whole operating system of its own; containers share the host’s, which is why they’re small and start fast.*
 

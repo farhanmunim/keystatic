@@ -43,7 +43,7 @@ Git commit.
 | Content schema | Astro content collections (Zod). Mirrors the CMS | `src/content.config.ts` |
 | CMS | Keystatic (`@keystatic/core`, `@keystatic/astro`, React). Admin UI at `/keystatic` | `keystatic.config.ts` |
 | Content files | Markdoc (`.mdoc`) for rich text, YAML (`.yaml`) for data | `src/content/<collection>/` |
-| Media | One shared folder, served at `/uploads/...` | `public/uploads/` |
+| Media | One folder per entry: `public/uploads/<collection>/<entry-slug>/`, served at `/uploads/...`; `/media` lists all | `public/uploads/` |
 | Hosting adapter | `@astrojs/cloudflare`, builds a Worker with static assets | `astro.config.mjs` |
 | Analytics | Self-hosted Umami at `mochi.farhan.app`, script injected from Site Settings | `head_html` in `src/content/settings/site.yaml` |
 
@@ -166,7 +166,7 @@ files. It replaces the generated content each time it runs.
 | resources | resources |
 | socials | Site Settings social links |
 | the single user | the author |
-| media library, inline diagrams | `public/uploads` |
+| media library, inline diagrams | `public/uploads/<collection>/<slug>/`; unreferenced files in `public/uploads/library/` |
 
 Run it with `pip install beautifulsoup4` then `python3 scripts/import-wordpress.py`.
 

@@ -1,0 +1,66 @@
+---
+// A read-only view of everything in public/uploads, grouped by folder. Keystatic has no media
+// library of its own; this page is the "where is that file?" answer. The file list comes from
+// the uploadsIndex() integration in astro.config.mjs, built at deploy time.
+import files from 'virtual:uploads';
+import Layout from '../layouts/Layout.astro';
+
+const imageExt = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg']);
+
+type File = { name: string; path: string; size: number; ext: string; image: boolean };
+const groups = new Map<string, File[]>();
+for (const f of files) {
+  const rel = f.path.replace(/^\/uploads\//, '');
+  const folder = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '(root)';
+  const name = rel.slice(rel.lastIndexOf('/') + 1);
+  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  const list = groups.get(folder) ?? [];
+  list.push({ name, path: f.path, size: f.size, ext, image: imageExt.has(ext) });
+  groups.set(folder, list);
+}
+
+const folders = [...groups.keys()].sort();
+const kb = (n: number) =>
+  n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
+---
+
+<Layout title="Media" description="Every uploaded file on this site.">
+  <h1>Media</h1>
+  <p class="muted">
+    {files.length} files in <code>public/uploads</code>. Files are stored per entry
+    (<code>/uploads/&lt;collection&gt;/&lt;entry&gt;/…</code>); <code>library/</code> holds files no entry uses yet.
+    Upload through an image or file field in the CMS; delete or move files on GitHub.
+  </p>
+
+  {folders.map((folder) => (
+    <section class="media-folder">
+      <h2><code>{folder}</code> <span class="muted">({groups.get(folder)!.length})</span></h2>
+      <ul class="media-grid">
+        {groups.get(folder)!.map((f) => (
+          <li>
+            <a href={f.path} target="_blank" rel="noopener">
+              {f.image ? <img src={f.path} alt="" loading="lazy" /> : <div class="media-file">{f.ext.toUpperCase() || 'FILE'}</div>}
+            </a>
+            <div class="media-meta">
+              <strong title={f.name}>{f.name}</strong>
+              <span class="muted">{kb(f.size)}</span>
+              <input type="text" readonly value={f.path} aria-label="Path" onclick="this.select()" />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</Layout>
+
+<style>
+  .media-folder h2 { font-size: 1.1rem; margin-top: 2rem; }
+  .media-grid { list-style: none; padding: 0; margin: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .media-grid li { border: 1px solid var(--line); border-radius: .5rem; overflow: hidden; display: flex; flex-direction: column; }
+  .media-grid a { display: block; aspect-ratio: 4 / 3; background: var(--bg-soft); }
+  .media-grid img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .media-file { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-weight: 600; }
+  .media-meta { padding: .5rem; display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; }
+  .media-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .media-meta input { font: inherit; font-size: .75rem; border: 1px solid var(--line); border-radius: .3rem; padding: .2rem .4rem; width: 100%; }
+</style>
