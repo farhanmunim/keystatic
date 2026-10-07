@@ -71,6 +71,9 @@ is the editor guide, and `/analytics` embeds the Umami share dashboard when its 
 - **Worker name:** `keystatic`. It must match `name` in `package.json`, because the adapter
   generates the Wrangler config from it.
 - **Git integration:** Workers Builds, connected to this repo, production branch `main`.
+  Cloudflare's **Production branch** setting must say `main`. It is pre-filled with whatever
+  GitHub's default branch was when the repo was connected, and if it names a branch that no
+  longer exists every build fails before it starts.
   - Build command: `npm run build`
   - Deploy command: `npx wrangler deploy`
   - Node version from `.node-version`.
